@@ -155,19 +155,11 @@ final class X11Overlay: BreakOverlay {
     // MARK: - Drawing
 
     private var progress: Double {
-        guard let context, context.totalSeconds > 0 else { return 1 }
-        return max(0, min(1, 1 - secondsLeft / context.totalSeconds))
+        BreakVisuals.progress(secondsLeft: secondsLeft, total: context?.totalSeconds ?? 0)
     }
 
-    /// Same curve as the macOS overlay: visible at the edges of the break,
-    /// nearly black through the middle so there is nothing to look at.
     private var contentAlpha: Double {
-        guard let context, context.fadeToBlack else { return 1 }
-        let p = progress
-        if p < 0.18 || p > 0.82 { return 1 }
-        let fadeIn = min(1, (p - 0.18) / 0.12)
-        let fadeOut = min(1, (0.82 - p) / 0.12)
-        return 1 - 0.88 * min(fadeIn, fadeOut)
+        BreakVisuals.contentAlpha(progress: progress, fadeToBlack: context?.fadeToBlack ?? true)
     }
 
     private func draw() {
@@ -214,7 +206,7 @@ final class X11Overlay: BreakOverlay {
         let alpha = contentAlpha
         let centerX = rect.x + rect.width / 2
         let centerY = rect.y + rect.height / 2
-        let isFinishing = secondsLeft <= 3
+        let isFinishing = secondsLeft <= BreakVisuals.finishingSeconds
 
         // Soft radial glow, the counterpart of the macOS RadialGradient.
         if let gradient = cairo_pattern_create_radial(centerX, centerY, 0, centerX, centerY,

@@ -240,6 +240,64 @@ final class BreakEngineTests {
         expectTrue(platform.manualScheduler.cancelled)
     }
 
+    // MARK: - Shared presentation rules
+
+    /// Both renderers ask BreakVisuals for these, so the macOS and Linux overlays
+    /// cannot drift apart.
+    func testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle() {
+        expectEqual(BreakVisuals.contentAlpha(progress: 0, fadeToBlack: true), 1)
+        expectEqual(BreakVisuals.contentAlpha(progress: 0.17, fadeToBlack: true), 1)
+        expectTrue(BreakVisuals.contentAlpha(progress: 0.5, fadeToBlack: true) < 0.15)
+        expectEqual(BreakVisuals.contentAlpha(progress: 0.9, fadeToBlack: true), 1)
+        expectEqual(BreakVisuals.contentAlpha(progress: 0.5, fadeToBlack: false), 1)
+    }
+
+    func testProgressIsClampedAndSafeAtZeroTotal() {
+        expectEqual(BreakVisuals.progress(secondsLeft: 20, total: 20), 0)
+        expectEqual(BreakVisuals.progress(secondsLeft: 5, total: 20), 0.75)
+        expectEqual(BreakVisuals.progress(secondsLeft: -3, total: 20), 1)
+        expectEqual(BreakVisuals.progress(secondsLeft: 5, total: 0), 1)
+    }
+
+    func testPauseDurationGrammar() {
+        expectEqual(PauseDuration("20m"), .seconds(1200))
+        expectEqual(PauseDuration("1h"), .seconds(3600))
+        expectEqual(PauseDuration("90s"), .seconds(90))
+        expectEqual(PauseDuration("inf"), .indefinite)
+        expectEqual(PauseDuration("forever"), .indefinite)
+        expectEqual(PauseDuration("20"), .invalid, "a bare number is ambiguous")
+        expectEqual(PauseDuration("nonsense"), .invalid)
+        expectEqual(PauseDuration("0m"), .invalid)
+    }
+
+    func testInvalidPauseDurationYieldsNoDeadline() {
+        let now = Date()
+        expectTrue(PauseDuration("nonsense").deadline(from: now) == nil, "must not pause at all")
+        expectTrue(PauseDuration("inf").deadline(from: now) == .some(nil), "must pause indefinitely")
+    }
+
+    // MARK: - Settings observers
+
+    /// Two subsystems legitimately watch settings; one must not displace the other.
+    func testSettingsObserversAreAdditive() {
+        var first = 0
+        var second = 0
+        settings.onChange { first += 1 }
+        settings.onChange { second += 1 }
+        settings.strictMode = true
+        expectEqual(first, 1)
+        expectEqual(second, 1)
+    }
+
+    func testBreakOnDemandOverridesAPause() {
+        engine.pause(until: nil)
+        engine.takeBreakNow()
+        expectEqual(engine.phase, .resting)
+        platform.advance(20)
+        expectEqual(engine.phase, .working, "an explicit break ends the pause")
+        expectEqual(settings.breaksToday, 1)
+    }
+
     // MARK: - Formatting
 
     func testFormatting() {
@@ -275,6 +333,12 @@ final class BreakEngineTests {
         ("testStatusSurfaceReceivesSnapshotsAndCommands", testStatusSurfaceReceivesSnapshotsAndCommands),
         ("testSnapshotsAreDeduplicated", testSnapshotsAreDeduplicated),
         ("testStopHaltsTheTicker", testStopHaltsTheTicker),
+        ("testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle", testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle),
+        ("testProgressIsClampedAndSafeAtZeroTotal", testProgressIsClampedAndSafeAtZeroTotal),
+        ("testPauseDurationGrammar", testPauseDurationGrammar),
+        ("testInvalidPauseDurationYieldsNoDeadline", testInvalidPauseDurationYieldsNoDeadline),
+        ("testSettingsObserversAreAdditive", testSettingsObserversAreAdditive),
+        ("testBreakOnDemandOverridesAPause", testBreakOnDemandOverridesAPause),
         ("testFormatting", testFormatting)
         ]
     }

@@ -1,5 +1,5 @@
 # Build and smoke-test the Linux port without leaving macOS:
-#   docker build -f docker/Dockerfile -t blink-linux .
+#   docker build -f packaging/linux/Dockerfile -t blink-linux .
 #   docker run --rm blink-linux            # build + core self-test + overlay render
 FROM swift:6.0-noble
 
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 COPY Package.swift ./
 COPY Sources ./Sources
-COPY docker/smoke.sh /usr/local/bin/smoke.sh
+COPY packaging/linux/smoke.sh /usr/local/bin/smoke.sh
 RUN chmod +x /usr/local/bin/smoke.sh && swift build -c release
 
 CMD ["/usr/local/bin/smoke.sh"]

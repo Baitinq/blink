@@ -4,7 +4,7 @@ import CoreGraphics
 
 /// macOS implementation of every `BlinkCore` port.
 final class MacPlatform: Platform {
-    let settingsStore: SettingsStore = UserDefaultsStore()
+    let settingsStore: SettingsStore
     let idleMonitor: IdleMonitor = QuartzIdleMonitor()
     let sound: SoundPlayer = SystemSoundPlayer()
     let overlay: BreakOverlay = MacBreakOverlay()
@@ -14,7 +14,8 @@ final class MacPlatform: Platform {
     let clock: Clock = SystemClock()
     let status: StatusDisplay
 
-    init(status: StatusDisplay) {
+    init(store: SettingsStore, status: StatusDisplay) {
+        self.settingsStore = store
         self.status = status
     }
 }

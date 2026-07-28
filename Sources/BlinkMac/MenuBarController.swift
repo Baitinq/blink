@@ -7,12 +7,13 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
     private var commands: BreakCommands?
     private var snapshot = StatusSnapshot(phase: .working, secondsUntilBreak: 0, secondsLeftInBreak: 0,
                                           breaksToday: 0, workIntervalMinutes: 20, breakDurationSeconds: 20)
-    private var settings: BlinkSettings?
+    private let settings: BlinkSettings
     private var settingsWindow: NSWindow?
 
     /// The settings UI is macOS-specific, so the menu owns it rather than the core.
-    func attach(settings: BlinkSettings) {
+    init(settings: BlinkSettings) {
         self.settings = settings
+        super.init()
     }
 
     func install() {
@@ -45,8 +46,7 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
             .withSymbolConfiguration(config)
         button.image?.isTemplate = true
 
-        let showCountdown = settings?.showCountdownInStatusBar ?? false
-        button.title = showCountdown && !snapshot.phase.isPaused
+        button.title = settings.showCountdownInStatusBar && !snapshot.phase.isPaused
             ? " " + Format.compact(seconds: snapshot.secondsUntilBreak)
             : ""
     }
@@ -125,7 +125,7 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        guard let settings, let commands else { return }
+        guard let commands else { return }
         let window = SettingsWindow.make(model: SettingsViewModel(settings: settings, commands: commands))
         window.delegate = WindowCloseWatcher.shared
         WindowCloseWatcher.shared.onClose = { [weak self] in self?.settingsWindow = nil }

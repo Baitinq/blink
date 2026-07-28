@@ -26,8 +26,8 @@ input and notification plumbing.
 ## Install — macOS
 
 ```sh
-./build.sh --install     # self-test, build, sign, install to /Applications (or ~/Applications), launch
-./build.sh               # build only → build/Blink.app
+packaging/macos/build.sh --install   # self-test, build, sign, install to Applications, launch
+packaging/macos/build.sh            # build only → .build/Blink.app
 ```
 
 Look for the eye in the menu bar. Turn on **Launch at login** in Settings.
@@ -43,7 +43,7 @@ Requires an X11 session, or a Wayland session with XWayland (see
 ```sh
 # Debian/Ubuntu: apt install libx11-dev libxss-dev libxrandr-dev libcairo2-dev pkg-config
 # Fedora:        dnf install libX11-devel libXScrnSaver-devel libXrandr-devel cairo-devel
-./packaging/install-linux.sh
+packaging/linux/install.sh
 ```
 
 ```
@@ -108,24 +108,31 @@ The engine never counts down; it recomputes from wall-clock deadlines every
 tick, so suspend, clock changes and a stalled run loop cannot desynchronise it.
 
 ```
+Package.swift
 Sources/
-  BlinkCore/       Ports.swift · BreakEngine.swift · Settings.swift · Prompts.swift
+  BlinkCore/       Ports · BreakEngine · Settings · Presentation (prompts, formats,
+                   fade curve, pause grammar)
   BlinkMac/        App · MacPlatform · MacBreakOverlay · BreakOverlayView
                    MacWarningHUD · MenuBarController · SettingsWindow
   BlinkLinux/      main (daemon + CLI) · LinuxPlatform · X11Overlay
                    LinuxIdle · Notifications · ControlSurface · JSONStore · Shell
-  BlinkSelfTest/   23 deterministic engine tests, fake clock, no XCTest
+  BlinkSelfTest/   29 deterministic tests, fake clock and fake platform, no XCTest
   CX11/ CCairo/    system-library modulemaps
-Tools/             icon renderer · offscreen UI preview renderer
-docker/            Linux build + Xvfb smoke test with screenshots
-packaging/         systemd --user unit · autostart entry · installer
+packaging/macos/   build.sh (bundle + icon + sign + install) · makeicon.swift
+packaging/linux/   install.sh · systemd unit · autostart entry
+                   Dockerfile + smoke.sh (build and screenshot the overlay on Xvfb)
+docs/LINUX.md
 ```
+
+Anything platform-shaped that is nonetheless pure logic — the fade curve, the
+`20m`/`1h`/`inf` grammar, time formatting — lives in `BlinkCore` and is covered by
+the self-test, so the two renderers cannot drift apart.
 
 ## Tests
 
 ```sh
-swift run blink-selftest                                  # 23 tests, both platforms, ~10 ms
-docker build -f docker/Dockerfile -t blink-linux . \
+swift run blink-selftest                                  # 29 tests, both platforms, ~10 ms
+docker build -f packaging/linux/Dockerfile -t blink-linux . \
   && docker run --rm -v "$PWD/out":/out blink-linux       # Linux build + live overlay screenshots
 ```
 

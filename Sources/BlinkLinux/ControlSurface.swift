@@ -121,21 +121,11 @@ final class ControlSurface: StatusDisplay {
         case "resume": commands.resume()
         case "pause":
             let argument = parts.count > 1 ? parts[1] : "inf"
-            commands.pause(Self.parseDuration(argument).map { Date().addingTimeInterval($0) })
+            if let deadline = PauseDuration(argument).deadline(from: Date()) {
+                commands.pause(deadline)
+            }
         case "quit": exit(0)
         default: break
-        }
-    }
-
-    /// "20m", "1h", "90s", "inf".
-    static func parseDuration(_ text: String) -> TimeInterval? {
-        if text == "inf" || text == "forever" { return nil }
-        let value = Double(text.filter { $0.isNumber || $0 == "." }) ?? 0
-        guard value > 0 else { return nil }
-        switch text.last {
-        case "h": return value * 3600
-        case "s": return value
-        default: return value * 60
         }
     }
 

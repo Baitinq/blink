@@ -1,21 +1,15 @@
 import SwiftUI
+import BlinkCore
 
 struct BreakOverlayView: View {
     let showsControls: Bool
     @EnvironmentObject private var state: BreakState
 
-    /// While the middle of the break plays out we deliberately hide almost
-    /// everything: nothing on screen worth looking at means eyes actually leave.
     private var contentOpacity: Double {
-        guard state.fadeToBlack else { return 1 }
-        let p = state.progress
-        if p < 0.18 || p > 0.82 { return 1 }
-        let fadeIn = min(1, (p - 0.18) / 0.12)
-        let fadeOut = min(1, (0.82 - p) / 0.12)
-        return 1 - 0.88 * min(fadeIn, fadeOut)
+        BreakVisuals.contentAlpha(progress: state.progress, fadeToBlack: state.fadeToBlack)
     }
 
-    private var isFinishing: Bool { state.secondsLeft <= 3 }
+    private var isFinishing: Bool { state.secondsLeft <= BreakVisuals.finishingSeconds }
 
     var body: some View {
         ZStack {

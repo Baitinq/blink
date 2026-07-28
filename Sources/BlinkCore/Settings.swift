@@ -33,11 +33,20 @@ public final class BlinkSettings {
 
     private let store: SettingsStore
 
-    /// Fired whenever any setting changes, so the engine can re-arm and the UI redraw.
-    public var onChange: (() -> Void)?
+    private var observers: [() -> Void] = []
 
     public init(store: SettingsStore) {
         self.store = store
+    }
+
+    /// Notified whenever any setting changes, so the engine can re-arm and a UI
+    /// can redraw. Additive, so one subsystem cannot silently displace another.
+    public func onChange(_ handler: @escaping () -> Void) {
+        observers.append(handler)
+    }
+
+    private func notify() {
+        observers.forEach { $0() }
     }
 
     // MARK: Rhythm
@@ -97,7 +106,7 @@ public final class BlinkSettings {
         set {
             store.set(Self.todayStamp, for: .breaksTodayDate)
             store.set(newValue, for: .breaksToday)
-            onChange?()
+            notify()
         }
     }
 
@@ -109,11 +118,11 @@ public final class BlinkSettings {
 
     private func write(_ value: Int, _ key: SettingKey) {
         store.set(value, for: key)
-        onChange?()
+        notify()
     }
 
     private func write(_ value: Bool, _ key: SettingKey) {
         store.set(value, for: key)
-        onChange?()
+        notify()
     }
 }

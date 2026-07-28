@@ -49,11 +49,11 @@ Roughly 400 shared lines, ~600 per platform.
 
 ## Testing it from macOS
 
-`docker/` builds the Linux port and smoke-tests it against Xvfb, driving the
+`packaging/linux/` builds the Linux port and smoke-tests it against Xvfb, driving the
 daemon through its own CLI and screenshotting the real overlay:
 
 ```sh
-docker build -f docker/Dockerfile -t blink-linux .
+docker build -f packaging/linux/Dockerfile -t blink-linux .
 docker run --rm -v "$PWD/out":/out blink-linux
 ```
 

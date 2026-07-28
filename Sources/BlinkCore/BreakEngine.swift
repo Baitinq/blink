@@ -57,7 +57,7 @@ public final class BreakEngine {
         }
 
         // A shorter interval should take effect now, not after the old one elapses.
-        settings.onChange = { [weak self] in
+        settings.onChange { [weak self] in
             guard let self else { return }
             if case .working = self.phase {
                 self.nextBreakAt = min(self.nextBreakAt, self.now.addingTimeInterval(self.interval))
@@ -83,6 +83,7 @@ public final class BreakEngine {
         )
     }
 
+    /// Explicitly asked for, so it also ends a pause — the user's last instruction wins.
     public func takeBreakNow() {
         if case .resting = phase { return }
         beginBreak()

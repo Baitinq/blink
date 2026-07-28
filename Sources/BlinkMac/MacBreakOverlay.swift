@@ -13,7 +13,7 @@ final class BreakState: ObservableObject {
     var onSkip: () -> Void = {}
     var onPostpone: () -> Void = {}
 
-    var progress: Double { total <= 0 ? 1 : max(0, min(1, 1 - secondsLeft / total)) }
+    var progress: Double { BreakVisuals.progress(secondsLeft: secondsLeft, total: total) }
 
     func apply(_ context: BreakContext) {
         total = context.totalSeconds
