@@ -23,9 +23,18 @@ final class MacPlatform: Platform {
 // MARK: - Persistence
 
 final class UserDefaultsStore: SettingsStore {
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
+    /// `BLINK_DEFAULTS_SUITE` points the store at a scratch domain, so verifying
+    /// the app with a 5-second break cannot rewrite real settings.
     init() {
+        if let suite = ProcessInfo.processInfo.environment["BLINK_DEFAULTS_SUITE"],
+           let scratch = UserDefaults(suiteName: suite) {
+            defaults = scratch
+        } else {
+            defaults = .standard
+        }
+
         var registration: [String: Any] = [:]
         for (key, value) in BlinkSettings.defaults { registration[key.rawValue] = value }
         defaults.register(defaults: registration)

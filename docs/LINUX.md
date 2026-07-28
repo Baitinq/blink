@@ -43,7 +43,7 @@ Roughly 400 shared lines, ~600 per platform.
 | --- | --- | --- |
 | **Idle time is wrong.** `XScreenSaverQueryInfo` under XWayland only counts input delivered to X clients, so typing in a Wayland-native window looks like idleness. | Without handling, "time away counts as a break" would cancel *every* break while you work. | `LinuxIdleMonitor` detects `WAYLAND_DISPLAY` and switches to `org.gnome.Mutter.IdleMonitor.GetIdletime`, falling back to `org.freedesktop.ScreenSaver.GetSessionIdleTime` (KDE). Sampled every 2 s and extrapolated, so no per-tick subprocess. |
 | **The compositor owns stacking.** Override-redirect is a hint XWayland cannot enforce against native Wayland surfaces. | A native Wayland window *can* end up above the overlay; a workspace switch escapes it. | The overlay re-raises itself on every `VisibilityNotify`. Beyond that, strict mode is "strongly discouraging" rather than absolute — stated plainly rather than pretended away. |
-| **The keyboard grab is XWayland-local.** | Esc/`p` work while the overlay has focus; a Wayland-native window that keeps focus keeps its keys. | Accepted. The control FIFO (`blink skip`) is always available as a fallback. |
+| **The keyboard grab is XWayland-local.** | `esc esc`/`p p` work while the overlay has focus; a Wayland-native window that keeps focus keeps its keys. | Accepted. The control FIFO (`blink skip`) is always available as a fallback. |
 | **One X screen spans all outputs.** | A single root-sized window covers every monitor, which is what we want, but the geometry is one big rectangle. | `XRRGetMonitors` splits it back into physical monitors and draws one centred panel per monitor, with controls only on the primary — same rule as macOS. |
 | **No tray guarantee.** GNOME has no StatusNotifierItem without an extension. | No menu-bar equivalent. | `status.json` + FIFO + CLI, so waybar/polybar/eww can render it and scripts can drive it. A real StatusNotifierItem can be added later as a second `StatusDisplay` with no engine changes. |
 
@@ -60,6 +60,9 @@ docker run --rm -v "$PWD/out":/out blink-linux
 That run exercises: core self-test, config writes via `blink set`, daemon
 startup, `blink break`, the full 20 s break with its fade curve, break accounting,
 `blink pause 1h` / `blink resume` over the FIFO, and clean SIGTERM shutdown.
+
+Both ports share `SkipGate`, so the grace period and the two-press rule behave
+identically on X11 and AppKit.
 
 ## If Wayland fidelity becomes the priority
 

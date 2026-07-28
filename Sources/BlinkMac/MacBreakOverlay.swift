@@ -10,8 +10,13 @@ final class BreakState: ObservableObject {
     @Published var allowsSkip: Bool = true
     @Published var fadeToBlack: Bool = true
     @Published var postponeMinutes: Int = 5
+    /// Nil until the escape hatches accept input; see SkipGate.
+    @Published var armed = false
+    @Published var confirmingSkip = false
+    @Published var confirmingPostpone = false
     var onSkip: () -> Void = {}
     var onPostpone: () -> Void = {}
+    var gate = SkipGate(breakStartedAt: Date())
 
     var progress: Double { BreakVisuals.progress(secondsLeft: secondsLeft, total: total) }
 
@@ -24,6 +29,35 @@ final class BreakState: ObservableObject {
         postponeMinutes = context.postponeMinutes
         onSkip = context.onSkip
         onPostpone = context.onPostpone
+        gate = SkipGate(breakStartedAt: Date())
+        armed = false
+        confirmingSkip = false
+        confirmingPostpone = false
+    }
+
+    /// Called from the overlay's tick so the controls light up when they arm and
+    /// a stale "press esc again" prompt fades out on its own.
+    func refreshGate(now: Date = Date()) {
+        let isArmed = gate.isArmed(at: now)
+        if armed != isArmed { armed = isArmed }
+        let stillConfirming = gate.isConfirming(at: now)
+        if !stillConfirming {
+            if confirmingSkip { confirmingSkip = false }
+            if confirmingPostpone { confirmingPostpone = false }
+        }
+    }
+
+    func escapePressed() {
+        switch gate.keyPressed(at: Date()) {
+        case .ignored: break
+        case .confirm: confirmingSkip = true
+        case .act: onSkip()
+        }
+    }
+
+    func holdCompleted(postpone: Bool) {
+        guard gate.holdCompleted(at: Date()) == .act else { return }
+        postpone ? onPostpone() : onSkip()
     }
 }
 
@@ -47,13 +81,18 @@ final class MacBreakOverlay: BreakOverlay {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Esc skips, unless strict mode. Everything else is swallowed so
             // keystrokes never leak into the app behind the overlay.
-            if event.keyCode == 53, self?.state.allowsSkip == true { self?.state.onSkip() }
+            // Esc asks to skip — twice, deliberately. Every other keystroke is
+            // swallowed so it never leaks into the app behind the overlay.
+            if event.keyCode == 53, !event.isARepeat, self?.state.allowsSkip == true {
+                self?.state.escapePressed()
+            }
             return nil
         }
     }
 
     func update(secondsLeft: Double) {
         state.secondsLeft = max(0, secondsLeft)
+        state.refreshGate()
     }
 
     /// A display was plugged or unplugged mid-break: rebuild without re-chiming.

@@ -20,8 +20,10 @@ input and notification plumbing.
   still know when it is over, without peeking.
 - **Away time counts.** Leave the keyboard for a full break length and the timer
   resets — no pointless interruption when you get back from coffee.
-- **Escape hatches, or not.** Skip / postpone by default; *strict mode* removes
-  both and swallows Esc.
+- **Hard to cancel by accident.** The overlay lands under wherever your pointer
+  already is, so for the first 1.5 s nothing is accepted at all; after that Skip
+  and Postpone must be *held*, and Esc must be pressed twice. *Strict mode*
+  removes the hatches entirely.
 
 ## Install — macOS
 
@@ -33,7 +35,9 @@ packaging/macos/build.sh            # build only → .build/Blink.app
 Look for the eye in the menu bar. Turn on **Launch at login** in Settings.
 
 Menu: countdown and breaks-today · Break now · Skip · Pause (20 m / 1 h / 3 h /
-until resume) · Settings (⌘,) · Quit (⌘Q). During a break, **esc** skips.
+until resume) · Settings (⌘,) · Quit (⌘Q). During a break: hold a button, or
+press **esc** twice. Only one copy of Blink runs at a time; a second launch bows
+out rather than doubling your breaks.
 
 ## Install — Linux
 
@@ -57,7 +61,7 @@ blink config             config path + contents
 
 The daemon publishes `$XDG_RUNTIME_DIR/blink/status.json`, so a waybar/polybar
 module is a one-liner, and takes commands on a FIFO next to it. During a break,
-**esc** skips and **p** postpones.
+**esc esc** skips and **p p** postpones.
 
 ## Settings
 
@@ -131,14 +135,20 @@ the self-test, so the two renderers cannot drift apart.
 ## Tests
 
 ```sh
-swift run blink-selftest                                  # 29 tests, both platforms, ~10 ms
+swift run blink-selftest                                  # 33 tests, both platforms, ~10 ms
+packaging/macos/verify.sh                                 # live app: real overlay, timed break
 docker build -f packaging/linux/Dockerfile -t blink-linux . \
   && docker run --rm -v "$PWD/out":/out blink-linux       # Linux build + live overlay screenshots
 ```
 
 The self-test drives the engine through a fake clock and fake platform, so a
-full 20-minute cycle, sleep/wake, idle credit, pause expiry and display hotplug
-are all verified without waiting or opening a window.
+full 20-minute cycle, sleep/wake, idle credit, pause expiry, display hotplug and
+the accidental-skip guard are verified without waiting or opening a window.
+
+`verify.sh` is the belt-and-braces check on the real app: it runs against a
+**scratch defaults domain** so it can never rewrite your settings, asserts the
+single-instance guard, times an actual break to the second, and cleans up its
+process on exit.
 
 ## Linux caveats
 

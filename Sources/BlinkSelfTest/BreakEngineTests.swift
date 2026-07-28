@@ -298,6 +298,46 @@ final class BreakEngineTests {
         expectEqual(settings.breaksToday, 1)
     }
 
+    // MARK: - Accidental-skip protection
+
+    /// This suite exists because a real break died 2 seconds in: the overlay
+    /// appears under wherever the pointer already is, and one stray click on
+    /// "Skip" ended it.
+    func testGateIgnoresEverythingDuringTheGracePeriod() {
+        let start = Date()
+        var gate = SkipGate(breakStartedAt: start)
+        expectFalse(gate.isArmed(at: start))
+        expectEqual(gate.keyPressed(at: start), .ignored)
+        expectEqual(gate.holdCompleted(at: start.addingTimeInterval(1.4)), .ignored)
+        expectTrue(gate.isArmed(at: start.addingTimeInterval(1.5)))
+    }
+
+    func testEscapeNeedsTwoPressesToSkip() {
+        let start = Date()
+        var gate = SkipGate(breakStartedAt: start)
+        let armed = start.addingTimeInterval(2)
+        expectEqual(gate.keyPressed(at: armed), .confirm)
+        expectTrue(gate.isConfirming(at: armed))
+        expectEqual(gate.keyPressed(at: armed.addingTimeInterval(0.4)), .act)
+    }
+
+    /// A vim user hits Esc constantly; two presses a minute apart are not intent.
+    func testStaleConfirmationExpires() {
+        let start = Date()
+        var gate = SkipGate(breakStartedAt: start)
+        let armed = start.addingTimeInterval(2)
+        expectEqual(gate.keyPressed(at: armed), .confirm)
+        expectFalse(gate.isConfirming(at: armed.addingTimeInterval(1.6)))
+        expectEqual(gate.keyPressed(at: armed.addingTimeInterval(1.6)), .confirm,
+                    "must arm again, not skip")
+    }
+
+    func testHoldingIsIntentEnoughOnItsOwn() {
+        let start = Date()
+        var gate = SkipGate(breakStartedAt: start)
+        expectEqual(gate.holdCompleted(at: start.addingTimeInterval(2)), .act)
+    }
+
     // MARK: - Formatting
 
     func testFormatting() {
@@ -339,6 +379,10 @@ final class BreakEngineTests {
         ("testInvalidPauseDurationYieldsNoDeadline", testInvalidPauseDurationYieldsNoDeadline),
         ("testSettingsObserversAreAdditive", testSettingsObserversAreAdditive),
         ("testBreakOnDemandOverridesAPause", testBreakOnDemandOverridesAPause),
+        ("testGateIgnoresEverythingDuringTheGracePeriod", testGateIgnoresEverythingDuringTheGracePeriod),
+        ("testEscapeNeedsTwoPressesToSkip", testEscapeNeedsTwoPressesToSkip),
+        ("testStaleConfirmationExpires", testStaleConfirmationExpires),
+        ("testHoldingIsIntentEnoughOnItsOwn", testHoldingIsIntentEnoughOnItsOwn),
         ("testFormatting", testFormatting)
         ]
     }

@@ -24,6 +24,9 @@ final class X11Overlay: BreakOverlay {
 
     private var context: BreakContext?
     private var secondsLeft: Double = 0
+    private var skipGate = SkipGate(breakStartedAt: Date())
+    private var postponeGate = SkipGate(breakStartedAt: Date())
+    private var confirming: String?
 
     /// Fails only when there is no X display at all, which is checked at startup.
     init?() {
@@ -39,6 +42,9 @@ final class X11Overlay: BreakOverlay {
         guard window == 0 else { return }
         self.context = context
         secondsLeft = context.totalSeconds
+        skipGate = SkipGate(breakStartedAt: Date())
+        postponeGate = SkipGate(breakStartedAt: Date())
+        confirming = nil
         createWindow()
         draw()
     }
@@ -139,17 +145,29 @@ final class X11Overlay: BreakOverlay {
         }
     }
 
+    /// Esc twice skips, p twice postpones, and neither is accepted during the
+    /// opening grace period — a break must not die from a reflex keystroke.
     private func handleKey(_ event: inout XEvent) {
-        guard let context else { return }
-        let keysym = XLookupKeysym(&event.xkey, 0)
-        switch UInt(keysym) {
-        case UInt(blink_XK_Escape) where context.allowsSkip:
-            context.onSkip()
+        guard let context, context.allowsSkip else { return }
+        let keysym = UInt(XLookupKeysym(&event.xkey, 0))
+        let now = Date()
+        switch keysym {
+        case UInt(blink_XK_Escape):
+            switch skipGate.keyPressed(at: now) {
+            case .ignored: break
+            case .confirm: confirming = "press esc again to skip"
+            case .act: context.onSkip()
+            }
         case UInt(blink_XK_p), UInt(blink_XK_P):
-            if context.allowsSkip { context.onPostpone() }
+            switch postponeGate.keyPressed(at: now) {
+            case .ignored: break
+            case .confirm: confirming = "press p again to postpone"
+            case .act: context.onPostpone()
+            }
         default:
-            break   // everything else is intentionally swallowed
+            return   // everything else is intentionally swallowed
         }
+        draw()
     }
 
     // MARK: - Drawing
@@ -250,9 +268,16 @@ final class X11Overlay: BreakOverlay {
              alpha: 0.55 * alpha, rgb: (1, 1, 1))
 
         guard showsControls, !isFinishing else { return }
-        let hint = context.allowsSkip
-            ? "esc to skip  ·  p to postpone \(context.postponeMinutes) min"
-            : "strict mode — this one is not skippable"
+        let hint: String
+        if !context.allowsSkip {
+            hint = "strict mode — this one is not skippable"
+        } else if let confirming, skipGate.isConfirming(at: Date()) || postponeGate.isConfirming(at: Date()) {
+            hint = confirming
+        } else if skipGate.isArmed(at: Date()) {
+            hint = "esc esc to skip  ·  p p to postpone \(context.postponeMinutes) min"
+        } else {
+            hint = ""
+        }
         text(cr, hint, size: 13, weight: CAIRO_FONT_WEIGHT_NORMAL,
              x: centerX, y: rect.y + rect.height - 60, alpha: 0.3 * alpha, rgb: (1, 1, 1))
     }
