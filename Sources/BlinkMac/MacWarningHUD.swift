@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import BlinkCore
 
 final class WarningState: ObservableObject {
     @Published var secondsLeft: Int = 10
@@ -8,7 +9,7 @@ final class WarningState: ObservableObject {
 
 /// Small non-intrusive HUD in the top-right corner: "look away in 10, 9, 8…"
 /// so a break never lands mid-thought without warning.
-final class WarningPanelController {
+final class MacWarningHUD: WarningHUD {
     private var panel: NSPanel?
     private let state = WarningState()
 

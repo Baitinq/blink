@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Blink
+Comment=Eye break reminders (20-20-20)
+Exec=blink
+Icon=eye
+Terminal=false
+Categories=Utility;
+X-GNOME-Autostart-enabled=true

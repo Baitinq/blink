@@ -3,15 +3,13 @@ import SwiftUI
 struct BreakOverlayView: View {
     let showsControls: Bool
     @EnvironmentObject private var state: BreakState
-    @ObservedObject private var settings = Settings.shared
 
     /// While the middle of the break plays out we deliberately hide almost
     /// everything: nothing on screen worth looking at means eyes actually leave.
     private var contentOpacity: Double {
-        guard settings.fadeToBlack else { return 1 }
+        guard state.fadeToBlack else { return 1 }
         let p = state.progress
-        if p < 0.18 { return 1 }
-        if p > 0.82 { return 1 }
+        if p < 0.18 || p > 0.82 { return 1 }
         let fadeIn = min(1, (p - 0.18) / 0.12)
         let fadeOut = min(1, (0.82 - p) / 0.12)
         return 1 - 0.88 * min(fadeIn, fadeOut)
@@ -62,7 +60,7 @@ struct BreakOverlayView: View {
 
                 if showsControls && !isFinishing {
                     controls
-                        .opacity(settings.fadeToBlack ? min(1, contentOpacity * 1.6) : 1)
+                        .opacity(state.fadeToBlack ? min(1, contentOpacity * 1.6) : 1)
                 }
             }
             .padding(48)
@@ -74,22 +72,22 @@ struct BreakOverlayView: View {
 
     private var controls: some View {
         VStack(spacing: 14) {
-            if settings.strictMode {
-                Label("Strict mode — this one is not skippable", systemImage: "lock.fill")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.3))
-            } else {
+            if state.allowsSkip {
                 HStack(spacing: 12) {
-                    GhostButton(title: "Postpone \(settings.postponeMinutes) min", symbol: "clock.arrow.circlepath") {
-                        BreakEngine.shared.postpone(minutes: settings.postponeMinutes)
+                    GhostButton(title: "Postpone \(state.postponeMinutes) min", symbol: "clock.arrow.circlepath") {
+                        state.onPostpone()
                     }
                     GhostButton(title: "Skip", symbol: "forward.end.fill") {
-                        BreakEngine.shared.skipCurrentCycle()
+                        state.onSkip()
                     }
                 }
                 Text("or press esc")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.22))
+            } else {
+                Label("Strict mode — this one is not skippable", systemImage: "lock.fill")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.3))
             }
         }
     }
@@ -133,9 +131,7 @@ struct GhostButton: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
-            .background(
-                Capsule().fill(Color.white.opacity(hovering ? 0.16 : 0.08))
-            )
+            .background(Capsule().fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
             .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
             .foregroundStyle(.white.opacity(hovering ? 0.95 : 0.7))
         }

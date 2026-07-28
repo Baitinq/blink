@@ -1,77 +1,142 @@
 # Blink
 
-A tiny native macOS menu-bar app that makes you rest your eyes. Built on the
+A small cross-platform utility that makes you rest your eyes. Built on the
 20-20-20 rule: every 20 minutes, look at something 20 feet away for 20 seconds.
+
+- **macOS** — a native menu-bar app (AppKit + SwiftUI), no dock icon.
+- **Linux** — an X11 daemon (Xlib + cairo) with a control CLI.
+
+Shared behaviour lives in one place; each platform only supplies its window,
+input and notification plumbing.
 
 ## Why it works
 
-- **Unmissable, not annoying.** A 10-second heads-up HUD appears in the top-right
-  corner so a break never lands mid-keystroke. Then the screen fades to a calm
-  dark overlay across *every* display.
+- **Unmissable, not annoying.** A heads-up appears ~10 s before a break so it
+  never lands mid-keystroke. Then the screen fades to a calm dark overlay across
+  *every* display.
 - **Nothing to look at.** Mid-break the overlay dims almost to black on purpose —
   if there is nothing on screen, your eyes actually leave it.
-- **Chimes at both ends.** Start and end sounds mean you can shut your eyes or
-  stare out the window and still know when the break is over, without peeking.
-- **Away time counts.** If you leave the keyboard for a full break length, the
-  timer resets — no pointless interruption when you get back from coffee.
-- **Escape hatches, or not.** Skip / Postpone by default; turn on *Strict mode*
-  when you want to be held to it.
+- **Chimes at both ends.** So you can shut your eyes or stare out the window and
+  still know when it is over, without peeking.
+- **Away time counts.** Leave the keyboard for a full break length and the timer
+  resets — no pointless interruption when you get back from coffee.
+- **Escape hatches, or not.** Skip / postpone by default; *strict mode* removes
+  both and swallows Esc.
 
-## Install
+## Install — macOS
 
 ```sh
-./build.sh --install     # builds, signs, installs to /Applications (or ~/Applications) and launches
-./build.sh               # build only, output in build/Blink.app
+./build.sh --install     # self-test, build, sign, install to /Applications (or ~/Applications), launch
+./build.sh               # build only → build/Blink.app
 ```
 
-Look for the eye icon in the menu bar. Turn on **Launch at login** in Settings.
+Look for the eye in the menu bar. Turn on **Launch at login** in Settings.
 
-## Menu bar
+Menu: countdown and breaks-today · Break now · Skip · Pause (20 m / 1 h / 3 h /
+until resume) · Settings (⌘,) · Quit (⌘Q). During a break, **esc** skips.
 
-- Next break countdown and today's break count
-- **Break now** / **Skip this cycle**
-- **Pause** for 20 min / 1 hour / 3 hours / until you resume
-- **Settings…** (⌘,) and **Quit** (⌘Q)
+## Install — Linux
+
+Requires an X11 session, or a Wayland session with XWayland (see
+[docs/LINUX.md](docs/LINUX.md) for what that costs you).
+
+```sh
+# Debian/Ubuntu: apt install libx11-dev libxss-dev libxrandr-dev libcairo2-dev pkg-config
+# Fedora:        dnf install libX11-devel libXScrnSaver-devel libXrandr-devel cairo-devel
+./packaging/install-linux.sh
+```
+
+```
+blink                    run the daemon (--verbose to log to stdout)
+blink status             "next break in 12:04  ·  3 today"
+blink break | skip | postpone | resume
+blink pause 20m | 1h | inf
+blink set breakDurationSeconds 30
+blink config             config path + contents
+```
+
+The daemon publishes `$XDG_RUNTIME_DIR/blink/status.json`, so a waybar/polybar
+module is a one-liner, and takes commands on a FIFO next to it. During a break,
+**esc** skips and **p** postpones.
 
 ## Settings
 
-| Setting | Default |
+Same keys on both platforms — `UserDefaults` on macOS,
+`$XDG_CONFIG_HOME/blink/config.json` on Linux.
+
+| Key | Default |
 | --- | --- |
-| Break every | 20 min |
-| Break lasts | 20 s |
-| Heads-up before | 10 s |
-| Postpone adds | 5 min |
-| Strict mode | off |
-| Fade the screen to black | on |
-| Chime at start and end | on |
-| Time away counts as a break | on |
-| Show countdown in the menu bar | off |
-| Launch at login | off |
+| `workIntervalMinutes` | 20 |
+| `breakDurationSeconds` | 20 |
+| `warningLeadSeconds` | 10 |
+| `postponeMinutes` | 5 |
+| `strictMode` | false |
+| `fadeToBlack` | true |
+| `playSounds` | true |
+| `idleResetEnabled` | true |
+| `showPreBreakWarning` | true |
+| `showCountdownInMenuBar` | false |
 
-During a break: **esc** skips (unless strict mode).
+## Architecture
 
-## Layout
+`BlinkCore` is the whole behaviour of the app and imports **Foundation only** —
+no AppKit, no SwiftUI, no Combine, no X11. It talks to the outside world through
+seven small ports; a platform is just a bundle of adapters.
 
 ```
-Sources/Blink/
-  App.swift              NSApplication bootstrap (accessory app, no dock icon)
-  BreakEngine.swift      work/warning/rest/pause state machine, idle + wake handling
-  Overlay.swift          full-screen break windows, one per display
-  BreakOverlayView.swift the break UI (countdown ring, prompts, controls)
-  WarningPanel.swift     pre-break heads-up HUD
-  MenuBarController.swift status item and menu
-  Settings.swift         UserDefaults-backed settings + daily stats
-  SettingsWindow.swift   settings UI, launch-at-login
-Tools/
-  makeicon.swift         renders the app icon into an .iconset
-  preview.swift          offscreen PNG renders of the UI for design review
-build.sh                 build → bundle → icon → codesign → install
+                    ┌───────────────────────────────┐
+                    │          BlinkCore            │
+                    │  BreakEngine   BlinkSettings  │
+                    │  Phase  Prompts  Format       │
+                    └───────────────┬───────────────┘
+        ports:  SettingsStore · IdleMonitor · SystemEvents · SoundPlayer
+                BreakOverlay · WarningHUD · StatusDisplay · Scheduler · Clock
+        ┌───────────────────────────┴───────────────────────────┐
+        │                                                       │
+┌───────────────────────────────┐         ┌───────────────────────────────┐
+│           BlinkMac            │         │          BlinkLinux           │
+│ NSStatusItem      menu + UI   │         │ ControlSurface  FIFO + JSON   │
+│ NSPanel @.screenSaver ×screen │         │ X11Overlay      override-      │
+│ SwiftUI overlay + settings    │         │   redirect window + cairo      │
+│ CGEventSource idle            │         │ XScreenSaver / DBus idle      │
+│ NSWorkspace wake              │         │ logind PrepareForSleep        │
+│ UserDefaults · NSSound        │         │ JSON file · canberra/paplay   │
+└───────────────────────────────┘         └───────────────────────────────┘
 ```
 
-Requires macOS 13+. No dependencies, no network access, no permissions needed.
+The engine never counts down; it recomputes from wall-clock deadlines every
+tick, so suspend, clock changes and a stalled run loop cannot desynchronise it.
 
-## Linux?
+```
+Sources/
+  BlinkCore/       Ports.swift · BreakEngine.swift · Settings.swift · Prompts.swift
+  BlinkMac/        App · MacPlatform · MacBreakOverlay · BreakOverlayView
+                   MacWarningHUD · MenuBarController · SettingsWindow
+  BlinkLinux/      main (daemon + CLI) · LinuxPlatform · X11Overlay
+                   LinuxIdle · Notifications · ControlSurface · JSONStore · Shell
+  BlinkSelfTest/   23 deterministic engine tests, fake clock, no XCTest
+  CX11/ CCairo/    system-library modulemaps
+Tools/             icon renderer · offscreen UI preview renderer
+docker/            Linux build + Xvfb smoke test with screenshots
+packaging/         systemd --user unit · autostart entry · installer
+```
 
-Not today — the UI is AppKit/SwiftUI. See [docs/LINUX.md](docs/LINUX.md) for a
-concrete port plan (Rust + GTK4 + layer-shell + StatusNotifierItem) and the
-behaviour spec both ports should satisfy.
+## Tests
+
+```sh
+swift run blink-selftest                                  # 23 tests, both platforms, ~10 ms
+docker build -f docker/Dockerfile -t blink-linux . \
+  && docker run --rm -v "$PWD/out":/out blink-linux       # Linux build + live overlay screenshots
+```
+
+The self-test drives the engine through a fake clock and fake platform, so a
+full 20-minute cycle, sleep/wake, idle credit, pause expiry and display hotplug
+are all verified without waiting or opening a window.
+
+## Linux caveats
+
+Wayland has no equivalent of an always-on-top screen-saver-level window for
+ordinary apps, and XWayland's idle clock cannot see Wayland-native input. Blink
+handles the second problem (it asks the compositor over DBus instead) and
+degrades on the first. Details and the layer-shell plan:
+[docs/LINUX.md](docs/LINUX.md).

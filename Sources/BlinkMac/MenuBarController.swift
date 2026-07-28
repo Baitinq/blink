@@ -1,32 +1,40 @@
 import AppKit
-import Combine
+import BlinkCore
 
-final class MenuBarController: NSObject, NSMenuDelegate {
+/// The macOS `StatusDisplay`: an `NSStatusItem` plus its menu.
+final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let engine = BreakEngine.shared
-    private let settings = Settings.shared
-    private var cancellables = Set<AnyCancellable>()
+    private var commands: BreakCommands?
+    private var snapshot = StatusSnapshot(phase: .working, secondsUntilBreak: 0, secondsLeftInBreak: 0,
+                                          breaksToday: 0, workIntervalMinutes: 20, breakDurationSeconds: 20)
+    private var settings: BlinkSettings?
     private var settingsWindow: NSWindow?
+
+    /// The settings UI is macOS-specific, so the menu owns it rather than the core.
+    func attach(settings: BlinkSettings) {
+        self.settings = settings
+    }
 
     func install() {
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
         statusItem.button?.toolTip = "Blink — eye break reminders"
-        refreshButton()
-
-        engine.onChange = { [weak self] in self?.refreshButton() }
-        settings.$showCountdownInMenuBar
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.refreshButton() } }
-            .store(in: &cancellables)
+        render(snapshot)
     }
 
-    // MARK: - Button
+    // MARK: - StatusDisplay
 
-    private func refreshButton() {
+    func bind(_ commands: BreakCommands) {
+        self.commands = commands
+    }
+
+    func render(_ snapshot: StatusSnapshot) {
+        self.snapshot = snapshot
         guard let button = statusItem.button else { return }
+
         let symbol: String
-        switch engine.phase {
+        switch snapshot.phase {
         case .paused: symbol = "eye.slash"
         case .resting: symbol = "eye.circle.fill"
         case .warning: symbol = "eye.trianglebadge.exclamationmark"
@@ -37,20 +45,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(config)
         button.image?.isTemplate = true
 
-        if settings.showCountdownInMenuBar, !engine.isPaused {
-            button.title = " " + Self.compact(seconds: engine.secondsUntilBreak)
-        } else {
-            button.title = ""
-        }
-    }
-
-    private static func compact(seconds: Int) -> String {
-        if seconds >= 60 { return "\(Int((Double(seconds) / 60).rounded(.up)))m" }
-        return "\(seconds)s"
-    }
-
-    private static func clock(seconds: Int) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
+        let showCountdown = settings?.showCountdownInStatusBar ?? false
+        button.title = showCountdown && !snapshot.phase.isPaused
+            ? " " + Format.compact(seconds: snapshot.secondsUntilBreak)
+            : ""
     }
 
     // MARK: - Menu
@@ -59,29 +57,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
 
         let header: String
-        switch engine.phase {
+        switch snapshot.phase {
         case .paused(let until):
-            if let until {
-                header = "Paused until \(Self.timeString(until))"
-            } else {
-                header = "Paused"
-            }
+            header = until.map { "Paused until \(Self.timeString($0))" } ?? "Paused"
         case .resting:
             header = "Break in progress"
         default:
-            header = "Next break in \(Self.clock(seconds: engine.secondsUntilBreak))"
+            header = "Next break in \(Format.clock(seconds: snapshot.secondsUntilBreak))"
         }
-        let headerItem = NSMenuItem(title: header, action: nil, keyEquivalent: "")
-        headerItem.isEnabled = false
-        menu.addItem(headerItem)
-
-        let stats = NSMenuItem(title: "\(settings.breaksToday) break\(settings.breaksToday == 1 ? "" : "s") today  ·  every \(settings.workIntervalMinutes) min for \(settings.breakDurationSeconds)s",
-                               action: nil, keyEquivalent: "")
-        stats.isEnabled = false
-        menu.addItem(stats)
+        menu.addItem(disabled(header))
+        menu.addItem(disabled("\(snapshot.breaksToday) break\(snapshot.breaksToday == 1 ? "" : "s") today  ·  every \(snapshot.workIntervalMinutes) min for \(snapshot.breakDurationSeconds)s"))
         menu.addItem(.separator())
 
-        if engine.isPaused {
+        if snapshot.phase.isPaused {
             menu.addItem(item("Resume", #selector(resume)))
         } else {
             menu.addItem(item("Break now", #selector(breakNow)))
@@ -98,8 +86,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(item("Settings…", #selector(openSettings), key: ","))
+        menu.addItem(item("BlinkSettings…", #selector(openSettings), key: ","))
         menu.addItem(item("Quit Blink", #selector(quit), key: "q"))
+    }
+
+    private func disabled(_ title: String) -> NSMenuItem {
+        let i = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        i.isEnabled = false
+        return i
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
@@ -116,13 +110,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - Actions
 
-    @objc private func breakNow() { engine.takeBreakNow() }
-    @objc private func skip() { engine.skipCurrentCycle() }
-    @objc private func resume() { engine.resume() }
-    @objc private func pause20() { engine.pause(until: Date().addingTimeInterval(20 * 60)) }
-    @objc private func pause60() { engine.pause(until: Date().addingTimeInterval(60 * 60)) }
-    @objc private func pause180() { engine.pause(until: Date().addingTimeInterval(180 * 60)) }
-    @objc private func pauseForever() { engine.pause(until: nil) }
+    @objc private func breakNow() { commands?.breakNow() }
+    @objc private func skip() { commands?.skip() }
+    @objc private func resume() { commands?.resume() }
+    @objc private func pause20() { commands?.pause(Date().addingTimeInterval(20 * 60)) }
+    @objc private func pause60() { commands?.pause(Date().addingTimeInterval(60 * 60)) }
+    @objc private func pause180() { commands?.pause(Date().addingTimeInterval(180 * 60)) }
+    @objc private func pauseForever() { commands?.pause(Date?.none) }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func openSettings() {
@@ -131,12 +125,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        let window = SettingsWindow.make()
+        guard let settings, let commands else { return }
+        let window = SettingsWindow.make(model: SettingsViewModel(settings: settings, commands: commands))
         window.delegate = WindowCloseWatcher.shared
         WindowCloseWatcher.shared.onClose = { [weak self] in self?.settingsWindow = nil }
         settingsWindow = window
-        window.makeKeyAndOrderFront(nil)
         window.center()
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 }

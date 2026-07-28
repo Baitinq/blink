@@ -1,0 +1,15 @@
+# systemd --user unit: install to ~/.config/systemd/user/blink.service
+#   systemctl --user enable --now blink
+[Unit]
+Description=Blink — eye break reminders
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/blink
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

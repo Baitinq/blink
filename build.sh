@@ -7,13 +7,16 @@ APP="build/Blink.app"
 BUNDLE_ID="com.manuelpalenzuela.blink"
 VERSION="1.0"
 
+echo "▸ core self-test"
+swift run -c release blink-selftest
+
 echo "▸ compiling"
-swift build -c release
+swift build -c release --product blink
 
 echo "▸ assembling bundle"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/Blink "$APP/Contents/MacOS/Blink"
+cp .build/release/blink "$APP/Contents/MacOS/Blink"
 
 echo "▸ icon"
 rm -rf build/Blink.iconset
