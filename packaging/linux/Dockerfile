@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 COPY Package.swift ./
-COPY Sources ./Sources
+COPY src ./src
 COPY packaging/linux/smoke.sh /usr/local/bin/smoke.sh
 RUN chmod +x /usr/local/bin/smoke.sh && swift build -c release
 

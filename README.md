@@ -41,8 +41,7 @@ out rather than doubling your breaks.
 
 ## Install — Linux
 
-Requires an X11 session, or a Wayland session with XWayland (see
-[docs/LINUX.md](docs/LINUX.md) for what that costs you).
+Requires an X11 session, or a Wayland session with XWayland.
 
 ```sh
 # Debian/Ubuntu: apt install libx11-dev libxss-dev libxrandr-dev libcairo2-dev pkg-config
@@ -113,7 +112,7 @@ tick, so suspend, clock changes and a stalled run loop cannot desynchronise it.
 
 ```
 Package.swift
-Sources/
+src/
   BlinkCore/       Ports · BreakEngine · Settings · Presentation (prompts, formats,
                    fade curve, pause grammar)
   BlinkMac/        App · MacPlatform · MacBreakOverlay · BreakOverlayView
@@ -125,7 +124,6 @@ Sources/
 packaging/macos/   build.sh (bundle + icon + sign + install) · makeicon.swift
 packaging/linux/   install.sh · systemd unit · autostart entry
                    Dockerfile + smoke.sh (build and screenshot the overlay on Xvfb)
-docs/LINUX.md
 ```
 
 Anything platform-shaped that is nonetheless pure logic — the fade curve, the
@@ -152,8 +150,13 @@ process on exit.
 
 ## Linux caveats
 
-Wayland has no equivalent of an always-on-top screen-saver-level window for
-ordinary apps, and XWayland's idle clock cannot see Wayland-native input. Blink
-handles the second problem (it asks the compositor over DBus instead) and
-degrades on the first. Details and the layer-shell plan:
-[docs/LINUX.md](docs/LINUX.md).
+The overlay is an override-redirect X11 window: under Xorg nothing can stack
+above it and `XGrabKeyboard` swallows every keystroke. Under XWayland the
+compositor owns stacking, so a native Wayland window can cover it and the grab
+only reaches X clients — strict mode becomes strongly discouraging rather than
+absolute. Idle detection switches to the compositor's DBus idle monitor on
+Wayland, because XWayland's own idle clock cannot see Wayland-native input and
+would otherwise cancel every break while you type.
+
+Adding a `gtk4-layer-shell` overlay would fix stacking and the grab on wlroots
+and KDE; it is one more `BreakOverlay` implementation and nothing else changes.
