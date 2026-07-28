@@ -69,3 +69,9 @@ build.sh                 build → bundle → icon → codesign → install
 ```
 
 Requires macOS 13+. No dependencies, no network access, no permissions needed.
+
+## Linux?
+
+Not today — the UI is AppKit/SwiftUI. See [docs/LINUX.md](docs/LINUX.md) for a
+concrete port plan (Rust + GTK4 + layer-shell + StatusNotifierItem) and the
+behaviour spec both ports should satisfy.
