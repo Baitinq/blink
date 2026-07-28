@@ -1,0 +1,145 @@
+import SwiftUI
+
+struct BreakOverlayView: View {
+    let showsControls: Bool
+    @EnvironmentObject private var state: BreakState
+    @ObservedObject private var settings = Settings.shared
+
+    /// While the middle of the break plays out we deliberately hide almost
+    /// everything: nothing on screen worth looking at means eyes actually leave.
+    private var contentOpacity: Double {
+        guard settings.fadeToBlack else { return 1 }
+        let p = state.progress
+        if p < 0.18 { return 1 }
+        if p > 0.82 { return 1 }
+        let fadeIn = min(1, (p - 0.18) / 0.12)
+        let fadeOut = min(1, (0.82 - p) / 0.12)
+        return 1 - 0.88 * min(fadeIn, fadeOut)
+    }
+
+    private var isFinishing: Bool { state.secondsLeft <= 3 }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.97)
+            RadialGradient(
+                colors: [Color(red: 0.07, green: 0.13, blue: 0.16), .black],
+                center: .center, startRadius: 0, endRadius: 900
+            )
+            .opacity(0.9)
+
+            VStack(spacing: 34) {
+                Spacer()
+
+                ZStack {
+                    CountdownRing(progress: state.progress)
+                        .frame(width: 186, height: 186)
+                    VStack(spacing: 2) {
+                        Text("\(Int(state.secondsLeft.rounded(.up)))")
+                            .font(.system(size: 62, weight: .thin, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                        Text("seconds")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .tracking(2.4)
+                            .textCase(.uppercase)
+                            .foregroundStyle(.white.opacity(0.35))
+                    }
+                }
+
+                VStack(spacing: 12) {
+                    Text(isFinishing ? "Welcome back" : "Look away")
+                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.92))
+                    Text(isFinishing ? "Your eyes just got a full reset." : state.prompt)
+                        .font(.system(size: 19, weight: .regular, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 520)
+                }
+
+                Spacer()
+
+                if showsControls && !isFinishing {
+                    controls
+                        .opacity(settings.fadeToBlack ? min(1, contentOpacity * 1.6) : 1)
+                }
+            }
+            .padding(48)
+            .opacity(contentOpacity)
+            .animation(.easeInOut(duration: 0.9), value: contentOpacity)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var controls: some View {
+        VStack(spacing: 14) {
+            if settings.strictMode {
+                Label("Strict mode — this one is not skippable", systemImage: "lock.fill")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.3))
+            } else {
+                HStack(spacing: 12) {
+                    GhostButton(title: "Postpone \(settings.postponeMinutes) min", symbol: "clock.arrow.circlepath") {
+                        BreakEngine.shared.postpone(minutes: settings.postponeMinutes)
+                    }
+                    GhostButton(title: "Skip", symbol: "forward.end.fill") {
+                        BreakEngine.shared.skipCurrentCycle()
+                    }
+                }
+                Text("or press esc")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.22))
+            }
+        }
+    }
+}
+
+private struct CountdownRing: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.08), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: max(0.001, 1 - progress))
+                .stroke(
+                    AngularGradient(
+                        colors: [Color(red: 0.35, green: 0.85, blue: 0.78),
+                                 Color(red: 0.42, green: 0.62, blue: 0.95)],
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.5), value: progress)
+                .shadow(color: Color(red: 0.35, green: 0.85, blue: 0.78).opacity(0.35), radius: 12)
+        }
+    }
+}
+
+struct GhostButton: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                Text(title).font(.system(size: 13, weight: .medium, design: .rounded))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(
+                Capsule().fill(Color.white.opacity(hovering ? 0.16 : 0.08))
+            )
+            .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            .foregroundStyle(.white.opacity(hovering ? 0.95 : 0.7))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
