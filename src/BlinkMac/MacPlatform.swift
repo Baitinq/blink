@@ -10,13 +10,20 @@ final class MacPlatform: Platform {
     let overlay: BreakOverlay = MacBreakOverlay()
     let warningHUD: WarningHUD = MacWarningHUD()
     let systemEvents: SystemEvents = MacSystemEvents()
+    let busy: BusyMonitor
     let scheduler: Scheduler = RunLoopScheduler()
     let clock: Clock = SystemClock()
     let status: StatusDisplay
 
-    init(store: SettingsStore, status: StatusDisplay) {
+    /// Kept concrete as well as behind the port, so Settings can show whether
+    /// calendar access was granted.
+    let calendar: CalendarBusyMonitor
+
+    init(store: SettingsStore, settings: BlinkSettings, status: StatusDisplay) {
         self.settingsStore = store
         self.status = status
+        calendar = CalendarBusyMonitor(settings: settings)
+        busy = calendar
     }
 }
 

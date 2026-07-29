@@ -7,12 +7,32 @@ import BlinkCore
 /// core never has to know Combine exists.
 final class SettingsViewModel: ObservableObject {
     private let settings: BlinkSettings
+    private let calendar: CalendarBusyMonitor?
     let commands: BreakCommands
 
-    init(settings: BlinkSettings, commands: BreakCommands) {
+    init(settings: BlinkSettings, commands: BreakCommands, calendar: CalendarBusyMonitor? = nil) {
         self.settings = settings
         self.commands = commands
+        self.calendar = calendar
     }
+
+    var skipDuringMeetings: Binding<Bool> {
+        Binding(
+            get: { self.settings.skipDuringMeetings },
+            set: { newValue in
+                self.objectWillChange.send()
+                self.settings.skipDuringMeetings = newValue
+                // Only ever prompt for calendar access when the feature is wanted.
+                if newValue { self.calendar?.requestAccessIfNeeded() }
+            }
+        )
+    }
+
+    var meetingsNeedAttendees: Binding<Bool> { binding(\.meetingsNeedAttendees) }
+
+    /// Surfaces a denied Calendar permission where the toggle is, rather than
+    /// silently never holding a break.
+    var calendarProblem: String? { calendar?.accessProblem }
 
     var breaksToday: Int { settings.breaksToday }
 
@@ -92,6 +112,17 @@ struct SettingsContent: View {
                 Divider().opacity(0.4)
                 stepperRow(title: "Postpone adds", value: model.postponeMinutes,
                            range: 1...30, step: 1, format: { "\($0) min" })
+            }
+
+            section("Meetings") {
+                toggleRow("Hold breaks during meetings",
+                          model.calendarProblem
+                              ?? "Reads the calendars already in Calendar.app — including your Google account over CalDAV. A due break waits until the meeting ends.",
+                          model.skipDuringMeetings)
+                Divider().opacity(0.4)
+                toggleRow("Only events with other people",
+                          "Focus blocks and solo reminders will not hold a break; anything with attendees or a video link will.",
+                          model.meetingsNeedAttendees)
             }
 
             section("Behaviour") {

@@ -11,6 +11,7 @@ public protocol Platform: AnyObject {
     var overlay: BreakOverlay { get }
     var warningHUD: WarningHUD { get }
     var systemEvents: SystemEvents { get }
+    var busy: BusyMonitor { get }
     var status: StatusDisplay { get }
     var scheduler: Scheduler { get }
     var clock: Clock { get }
@@ -47,6 +48,21 @@ public protocol IdleMonitor: AnyObject {
 public protocol SystemEvents: AnyObject {
     func observeWake(_ handler: @escaping () -> Void)
     func observeDisplayChange(_ handler: @escaping () -> Void)
+}
+
+/// Times when a full-screen overlay would be unacceptable — a meeting, a call.
+/// macOS reads the calendars already configured in Calendar.app; Linux polls an
+/// iCal URL.
+public protocol BusyMonitor: AnyObject {
+    /// Nil when free, otherwise a short reason to show in the status surface.
+    func busyReason(at now: Date) -> String?
+}
+
+/// Used when nothing can report busy-ness, and as the default on both platforms
+/// until a calendar is available.
+public final class NeverBusy: BusyMonitor {
+    public init() {}
+    public func busyReason(at now: Date) -> String? { nil }
 }
 
 // MARK: - Output
@@ -109,15 +125,18 @@ public struct StatusSnapshot: Equatable {
     public let breaksToday: Int
     public let workIntervalMinutes: Int
     public let breakDurationSeconds: Int
+    /// Set while a due break is being held back, e.g. "in a meeting".
+    public let heldReason: String?
 
     public init(phase: Phase, secondsUntilBreak: Int, secondsLeftInBreak: Int, breaksToday: Int,
-                workIntervalMinutes: Int, breakDurationSeconds: Int) {
+                workIntervalMinutes: Int, breakDurationSeconds: Int, heldReason: String? = nil) {
         self.phase = phase
         self.secondsUntilBreak = secondsUntilBreak
         self.secondsLeftInBreak = secondsLeftInBreak
         self.breaksToday = breaksToday
         self.workIntervalMinutes = workIntervalMinutes
         self.breakDurationSeconds = breakDurationSeconds
+        self.heldReason = heldReason
     }
 }
 

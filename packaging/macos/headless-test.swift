@@ -127,6 +127,30 @@ group("strict mode exposes no hatches") {
     expect(!state.allowsSkip, "the overlay knows not to offer an exit")
 }
 
+// MARK: - Meetings
+
+group("the calendar monitor stays silent when the feature is off") {
+    let store = ScratchStore()
+    let settings = BlinkSettings(store: store)
+    settings.skipDuringMeetings = false
+    let monitor = CalendarBusyMonitor(settings: settings)
+    // Must short-circuit before touching EKEventStore: nobody who turned this
+    // off should ever see a permission prompt. (Which is also why this test does
+    // not exercise the enabled path — it would prompt.)
+    expect(monitor.busyReason(at: Date()) == nil, "no busy reason when disabled")
+}
+
+group("settings exposes the meeting toggles") {
+    let settings = BlinkSettings(store: ScratchStore())
+    let model = SettingsViewModel(settings: settings,
+                                 commands: BreakCommands(breakNow: {}, skip: {}, postpone: {},
+                                                         pause: { _ in }, resume: {}))
+    expect(model.skipDuringMeetings.wrappedValue, "on by default")
+    expect(model.meetingsNeedAttendees.wrappedValue, "attendees required by default")
+    model.meetingsNeedAttendees.wrappedValue = false
+    expect(!settings.meetingsNeedAttendees, "toggle writes through")
+}
+
 // MARK: - The settings window
 
 group("settings window builds and lays out") {
@@ -169,7 +193,10 @@ group("menu bar renders every phase without a status item on screen") {
         menu.render(StatusSnapshot(phase: phase, secondsUntilBreak: 725, secondsLeftInBreak: 12,
                                    breaksToday: 3, workIntervalMinutes: 20, breakDurationSeconds: 20))
     }
-    expect(true, "no crash across all phases")
+    menu.render(StatusSnapshot(phase: .working, secondsUntilBreak: 0, secondsLeftInBreak: 0,
+                               breaksToday: 3, workIntervalMinutes: 20, breakDurationSeconds: 20,
+                               heldReason: "in Weekly sync"))
+    expect(true, "no crash across all phases, including a held break")
 }
 
 print("")

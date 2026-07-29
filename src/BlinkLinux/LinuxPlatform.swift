@@ -10,6 +10,7 @@ final class LinuxPlatform: Platform {
     let overlay: BreakOverlay
     let warningHUD: WarningHUD
     let systemEvents: SystemEvents
+    let busy: BusyMonitor
     let status: StatusDisplay
     let scheduler: Scheduler = DispatchScheduler()
     let clock: Clock = SystemClock()
@@ -18,14 +19,13 @@ final class LinuxPlatform: Platform {
 
     /// Fails when there is no X display, which is the one thing this port cannot
     /// work around.
-    init?(verbose: Bool) {
+    init?(verbose: Bool, store: SettingsStore, settings: BlinkSettings) {
         guard let x11 = X11Overlay() else { return nil }
         let display = XOpenDisplay(nil)   // separate connection for queries
-
-        let store = JSONFileStore()
         let idle = LinuxIdleMonitor(display: display)
 
         settingsStore = store
+        busy = ICSBusyMonitor(settings: settings)
         idleMonitor = idle
         describeIdleBackend = idle.backendDescription
         sound = LinuxSoundPlayer()

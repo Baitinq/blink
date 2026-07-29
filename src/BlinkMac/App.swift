@@ -22,7 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menuBar = MenuBarController(settings: settings)
         menuBar.install()
 
-        let engine = BreakEngine(settings: settings, platform: MacPlatform(store: store, status: menuBar))
+        let platform = MacPlatform(store: store, settings: settings, status: menuBar)
+        menuBar.attach(calendar: platform.calendar)
+        if settings.skipDuringMeetings { platform.calendar.requestAccessIfNeeded() }
+
+        let engine = BreakEngine(settings: settings, platform: platform)
         engine.start()
         self.engine = engine
     }

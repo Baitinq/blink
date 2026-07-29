@@ -27,6 +27,8 @@ public final class BreakEngine {
     private var nextBreakAt: Date
     private var breakEndsAt: Date
     private var lastSnapshot: StatusSnapshot?
+    /// Why a due break is being held back, if it is.
+    private var heldReason: String?
 
     private var now: Date { platform.clock.now }
 
@@ -124,8 +126,17 @@ public final class BreakEngine {
             if let until, now >= until { resume(); return }
 
         case .working, .warning:
-            if settings.idleResetEnabled,
-               platform.idleMonitor.idleSeconds() >= Double(settings.breakDurationSeconds) {
+            heldReason = settings.skipDuringMeetings ? platform.busy.busyReason(at: now) : nil
+            if let heldReason {
+                // A full-screen overlay during a meeting is unacceptable, so the
+                // deadline is left alone: the break fires the moment you are free.
+                _ = heldReason
+                if phase == .warning {
+                    platform.warningHUD.hide()
+                    phase = .working
+                }
+            } else if settings.idleResetEnabled,
+                      platform.idleMonitor.idleSeconds() >= Double(settings.breakDurationSeconds) {
                 // Away from the machine long enough that the eyes already rested.
                 nextBreakAt = now.addingTimeInterval(interval)
                 platform.warningHUD.hide()
@@ -212,7 +223,8 @@ public final class BreakEngine {
             secondsLeftInBreak: secondsLeftInBreak,
             breaksToday: settings.breaksToday,
             workIntervalMinutes: settings.workIntervalMinutes,
-            breakDurationSeconds: settings.breakDurationSeconds
+            breakDurationSeconds: settings.breakDurationSeconds,
+            heldReason: heldReason
         )
         guard snapshot != lastSnapshot else { return }
         lastSnapshot = snapshot

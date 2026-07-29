@@ -38,6 +38,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSCalendarsUsageDescription</key><string>Blink checks your calendar so it never interrupts a meeting with a break.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Blink checks your calendar so it never interrupts a meeting with a break.</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticTermination</key><false/>
   <key>NSSupportsSuddenTermination</key><false/>

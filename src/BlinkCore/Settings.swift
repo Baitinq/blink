@@ -11,6 +11,9 @@ extension SettingKey {
     public static let showWarning = SettingKey("showPreBreakWarning")
     public static let fadeToBlack = SettingKey("fadeToBlack")
     public static let idleReset = SettingKey("idleResetEnabled")
+    public static let skipDuringMeetings = SettingKey("skipDuringMeetings")
+    public static let meetingsNeedAttendees = SettingKey("meetingsNeedAttendees")
+    public static let calendarURL = SettingKey("calendarICSURL")
     public static let breaksToday = SettingKey("breaksToday")
     public static let breaksTodayDate = SettingKey("breaksTodayDate")
 }
@@ -29,6 +32,8 @@ public final class BlinkSettings {
         .showWarning: true,
         .fadeToBlack: true,
         .idleReset: true,
+        .skipDuringMeetings: true,
+        .meetingsNeedAttendees: true,
     ]
 
     private let store: SettingsStore
@@ -93,6 +98,22 @@ public final class BlinkSettings {
     public var idleResetEnabled: Bool {
         get { store.bool(.idleReset) }
         set { write(newValue, .idleReset) }
+    }
+    /// Hold breaks back while a meeting is in progress.
+    public var skipDuringMeetings: Bool {
+        get { store.bool(.skipDuringMeetings) }
+        set { write(newValue, .skipDuringMeetings) }
+    }
+    /// Only events with other people (or a video link) count as meetings, so
+    /// focus blocks and personal reminders do not suppress breaks.
+    public var meetingsNeedAttendees: Bool {
+        get { store.bool(.meetingsNeedAttendees) }
+        set { write(newValue, .meetingsNeedAttendees) }
+    }
+    /// Linux only: the private iCal address of a calendar to poll.
+    public var calendarICSURL: String? {
+        get { store.string(.calendarURL).flatMap { $0.isEmpty ? nil : $0 } }
+        set { store.set(newValue ?? "", for: .calendarURL); notify() }
     }
 
     // MARK: Daily stats

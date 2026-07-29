@@ -9,6 +9,11 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
                                           breaksToday: 0, workIntervalMinutes: 20, breakDurationSeconds: 20)
     private let settings: BlinkSettings
     private var settingsWindow: NSWindow?
+    private var calendar: CalendarBusyMonitor?
+
+    func attach(calendar: CalendarBusyMonitor) {
+        self.calendar = calendar
+    }
 
     /// The settings UI is macOS-specific, so the menu owns it rather than the core.
     init(settings: BlinkSettings) {
@@ -35,6 +40,14 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
         guard let button = statusItem.button else { return }
 
         let symbol: String
+        if snapshot.heldReason != nil {
+            button.image = NSImage(systemSymbolName: "eye.slash.circle",
+                                   accessibilityDescription: "Blink — break held")?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+            button.image?.isTemplate = true
+            button.title = ""
+            return
+        }
         switch snapshot.phase {
         case .paused: symbol = "eye.slash"
         case .resting: symbol = "eye.circle.fill"
@@ -57,6 +70,18 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
         menu.removeAllItems()
 
         let header: String
+        if let held = snapshot.heldReason {
+            header = "Break held — \(held)"
+            menu.addItem(disabled(header))
+            menu.addItem(disabled("It will start as soon as you are free."))
+            menu.addItem(.separator())
+            menu.addItem(item("Break now anyway", #selector(breakNow)))
+            menu.addItem(item("Skip this cycle", #selector(skip)))
+            menu.addItem(.separator())
+            menu.addItem(item("Settings…", #selector(openSettings), key: ","))
+            menu.addItem(item("Quit Blink", #selector(quit), key: "q"))
+            return
+        }
         switch snapshot.phase {
         case .paused(let until):
             header = until.map { "Paused until \(Self.timeString($0))" } ?? "Paused"
@@ -126,7 +151,8 @@ final class MenuBarController: NSObject, StatusDisplay, NSMenuDelegate {
             return
         }
         guard let commands else { return }
-        let window = SettingsWindow.make(model: SettingsViewModel(settings: settings, commands: commands))
+        let model = SettingsViewModel(settings: settings, commands: commands, calendar: calendar)
+        let window = SettingsWindow.make(model: model)
         window.delegate = WindowCloseWatcher.shared
         WindowCloseWatcher.shared.onClose = { [weak self] in self?.settingsWindow = nil }
         settingsWindow = window

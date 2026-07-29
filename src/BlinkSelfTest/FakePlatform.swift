@@ -96,6 +96,12 @@ final class ManualSystemEvents: SystemEvents {
     func fireDisplayChange() { displayHandlers.forEach { $0() } }
 }
 
+/// Reports whatever the test tells it to.
+final class FakeBusyMonitor: BusyMonitor {
+    var reason: String?
+    func busyReason(at now: Date) -> String? { reason }
+}
+
 final class RecordingStatus: StatusDisplay {
     var snapshots: [StatusSnapshot] = []
     var commands: BreakCommands?
@@ -114,12 +120,14 @@ final class FakePlatform: Platform {
     let recordingStatus = RecordingStatus()
     let manualScheduler = ManualScheduler()
     let fakeClock = FakeClock()
+    let fakeBusy = FakeBusyMonitor()
 
     var idleMonitor: IdleMonitor { fakeIdle }
     var sound: SoundPlayer { recordingSound }
     var overlay: BreakOverlay { recordingOverlay }
     var warningHUD: WarningHUD { recordingHUD }
     var systemEvents: SystemEvents { manualEvents }
+    var busy: BusyMonitor { fakeBusy }
     var status: StatusDisplay { recordingStatus }
     var scheduler: Scheduler { manualScheduler }
     var clock: Clock { fakeClock }

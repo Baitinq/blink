@@ -240,6 +240,181 @@ final class BreakEngineTests {
         expectTrue(platform.manualScheduler.cancelled)
     }
 
+    // MARK: - Meetings
+
+    func testADueBreakIsHeldWhileAMeetingIsOn() {
+        platform.fakeBusy.reason = "in Weekly sync"
+        platform.advance(21 * 60)
+        expectEqual(engine.phase, .working, "no overlay may appear during a meeting")
+        expectEqual(platform.recordingOverlay.presentCount, 0)
+        expectEqual(platform.recordingStatus.snapshots.last?.heldReason, "in Weekly sync")
+
+        platform.fakeBusy.reason = nil
+        platform.advance(1)
+        expectEqual(engine.phase, .resting, "the break starts the moment the meeting ends")
+    }
+
+    func testMeetingHoldCanBeDisabled() {
+        settings.skipDuringMeetings = false
+        platform.fakeBusy.reason = "in Weekly sync"
+        platform.advance(20 * 60)
+        expectEqual(engine.phase, .resting)
+    }
+
+    func testAMeetingStartingDuringTheWarningHidesIt() {
+        platform.advance(19 * 60 + 55)
+        expectEqual(engine.phase, .warning)
+        platform.fakeBusy.reason = "in Standup"
+        platform.advance(1)
+        expectEqual(engine.phase, .working)
+        expectFalse(platform.recordingHUD.isVisible, "no countdown while you are talking")
+    }
+
+    func testMeetingDoesNotInterruptABreakAlreadyRunning() {
+        engine.takeBreakNow()
+        platform.fakeBusy.reason = "in Standup"
+        platform.advance(20)
+        expectEqual(settings.breaksToday, 1, "a 20s break in progress just finishes")
+    }
+
+    func testMeetingFilterPicksTheRightEvent() {
+        let now = Date()
+        let events = [
+            BusyEvent(title: "All hands", start: now.addingTimeInterval(-600),
+                      end: now.addingTimeInterval(600)),
+            BusyEvent(title: "Over already", start: now.addingTimeInterval(-7200),
+                      end: now.addingTimeInterval(-3600)),
+            BusyEvent(title: "PTO", start: now.addingTimeInterval(-600),
+                      end: now.addingTimeInterval(86_400), isAllDay: true),
+            BusyEvent(title: "Declined", start: now.addingTimeInterval(-60),
+                      end: now.addingTimeInterval(600), isDeclined: true),
+            BusyEvent(title: "Marked free", start: now.addingTimeInterval(-60),
+                      end: now.addingTimeInterval(600), isTransparent: true),
+        ]
+        let meeting = MeetingFilter.inProgress(events, at: now, needAttendees: true)
+        expectEqual(meeting?.title, "All hands")
+        expectEqual(MeetingFilter.reason(for: meeting!), "in All hands")
+    }
+
+    func testSoloFocusBlocksDoNotHoldBreaks() {
+        let now = Date()
+        let focus = [BusyEvent(title: "Focus time", start: now.addingTimeInterval(-60),
+                               end: now.addingTimeInterval(3600), involvesOthers: false)]
+        expectTrue(MeetingFilter.inProgress(focus, at: now, needAttendees: true) == nil)
+        expectNotNil(MeetingFilter.inProgress(focus, at: now, needAttendees: false))
+    }
+
+    func testOverlappingMeetingsPickTheLatestEnd() {
+        let now = Date()
+        let events = [
+            BusyEvent(title: "Short", start: now.addingTimeInterval(-60), end: now.addingTimeInterval(60)),
+            BusyEvent(title: "Long", start: now.addingTimeInterval(-60), end: now.addingTimeInterval(3600)),
+        ]
+        expectEqual(MeetingFilter.inProgress(events, at: now, needAttendees: true)?.title, "Long")
+    }
+
+    // MARK: - iCal parsing (Linux calendar source)
+
+    func testICSParsesASingleMeeting() {
+        let text = """
+        BEGIN:VCALENDAR
+        BEGIN:VEVENT
+        SUMMARY:Design review
+        DTSTART:20260728T140000Z
+        DTEND:20260728T150000Z
+        ATTENDEE;CN=a:mailto:a@example.com
+        ATTENDEE;CN=b:mailto:b@example.com
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let day = Self.utc("20260728T120000Z")
+        let events = ICS.events(from: text, window: DateInterval(start: day, duration: 86_400))
+        expectEqual(events.count, 1)
+        expectEqual(events.first?.title, "Design review")
+        expectTrue(events.first?.involvesOthers == true)
+        expectNotNil(MeetingFilter.inProgress(events, at: Self.utc("20260728T143000Z"),
+                                              needAttendees: true))
+        expectTrue(MeetingFilter.inProgress(events, at: Self.utc("20260728T153000Z"),
+                                            needAttendees: true) == nil)
+    }
+
+    /// Standups are recurring, so this is the case that actually matters.
+    func testICSExpandsAWeekdayStandup() {
+        let text = """
+        BEGIN:VEVENT
+        SUMMARY:Standup
+        DTSTART:20260727T090000Z
+        DTEND:20260727T091500Z
+        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+        ATTENDEE:mailto:a@example.com
+        ATTENDEE:mailto:b@example.com
+        END:VEVENT
+        """
+        // Wednesday 29 July 2026, 09:07 UTC — mid-standup.
+        let wednesday = Self.utc("20260729T090700Z")
+        let events = ICS.events(from: text,
+                                window: DateInterval(start: wednesday.addingTimeInterval(-3600),
+                                                     duration: 7200))
+        expectNotNil(MeetingFilter.inProgress(events, at: wednesday, needAttendees: true),
+                     "a recurring standup must hold the break")
+    }
+
+    func testICSHonoursExdateAndAllDayEvents() {
+        let text = """
+        BEGIN:VEVENT
+        SUMMARY:Standup
+        DTSTART:20260727T090000Z
+        DTEND:20260727T091500Z
+        RRULE:FREQ=DAILY
+        EXDATE:20260729T090000Z
+        ATTENDEE:mailto:a@example.com
+        ATTENDEE:mailto:b@example.com
+        END:VEVENT
+        BEGIN:VEVENT
+        SUMMARY:Company holiday
+        DTSTART;VALUE=DATE:20260729
+        DTEND;VALUE=DATE:20260730
+        END:VEVENT
+        """
+        let wednesday = Self.utc("20260729T090700Z")
+        let events = ICS.events(from: text,
+                                window: DateInterval(start: wednesday.addingTimeInterval(-7200),
+                                                     duration: 14400))
+        expectTrue(MeetingFilter.inProgress(events, at: wednesday, needAttendees: true) == nil,
+                   "the cancelled occurrence must not hold a break")
+        expectTrue(events.contains { $0.isAllDay }, "all-day event parsed")
+    }
+
+    func testICSIgnoresDeclinedAndFreeEvents() {
+        let text = """
+        BEGIN:VEVENT
+        SUMMARY:Declined thing
+        DTSTART:20260728T140000Z
+        DTEND:20260728T150000Z
+        STATUS:CANCELLED
+        END:VEVENT
+        BEGIN:VEVENT
+        SUMMARY:Reminder
+        DTSTART:20260728T140000Z
+        DTEND:20260728T150000Z
+        TRANSP:TRANSPARENT
+        END:VEVENT
+        """
+        let events = ICS.events(from: text,
+                                window: DateInterval(start: Self.utc("20260728T120000Z"),
+                                                     duration: 86_400))
+        expectTrue(MeetingFilter.inProgress(events, at: Self.utc("20260728T143000Z"),
+                                            needAttendees: false) == nil)
+    }
+
+    private static func utc(_ stamp: String) -> Date {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f.date(from: stamp)!
+    }
+
     // MARK: - Shared presentation rules
 
     /// Both renderers ask BreakVisuals for these, so the macOS and Linux overlays
@@ -378,6 +553,17 @@ final class BreakEngineTests {
         ("testStatusSurfaceReceivesSnapshotsAndCommands", testStatusSurfaceReceivesSnapshotsAndCommands),
         ("testSnapshotsAreDeduplicated", testSnapshotsAreDeduplicated),
         ("testStopHaltsTheTicker", testStopHaltsTheTicker),
+        ("testADueBreakIsHeldWhileAMeetingIsOn", testADueBreakIsHeldWhileAMeetingIsOn),
+        ("testMeetingHoldCanBeDisabled", testMeetingHoldCanBeDisabled),
+        ("testAMeetingStartingDuringTheWarningHidesIt", testAMeetingStartingDuringTheWarningHidesIt),
+        ("testMeetingDoesNotInterruptABreakAlreadyRunning", testMeetingDoesNotInterruptABreakAlreadyRunning),
+        ("testMeetingFilterPicksTheRightEvent", testMeetingFilterPicksTheRightEvent),
+        ("testSoloFocusBlocksDoNotHoldBreaks", testSoloFocusBlocksDoNotHoldBreaks),
+        ("testOverlappingMeetingsPickTheLatestEnd", testOverlappingMeetingsPickTheLatestEnd),
+        ("testICSParsesASingleMeeting", testICSParsesASingleMeeting),
+        ("testICSExpandsAWeekdayStandup", testICSExpandsAWeekdayStandup),
+        ("testICSHonoursExdateAndAllDayEvents", testICSHonoursExdateAndAllDayEvents),
+        ("testICSIgnoresDeclinedAndFreeEvents", testICSIgnoresDeclinedAndFreeEvents),
         ("testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle", testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle),
         ("testProgressIsClampedAndSafeAtZeroTotal", testProgressIsClampedAndSafeAtZeroTotal),
         ("testPauseDurationGrammar", testPauseDurationGrammar),
