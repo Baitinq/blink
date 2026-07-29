@@ -136,8 +136,8 @@ public final class BreakEngine {
                     phase = .working
                 }
             } else if settings.idleResetEnabled,
-                      platform.idleMonitor.idleSeconds() >= Double(settings.breakDurationSeconds) {
-                // Away from the machine long enough that the eyes already rested.
+                      platform.idleMonitor.idleSeconds() >= Double(settings.idleRestSeconds) {
+                // Away from the machine long enough to count as a rest.
                 nextBreakAt = now.addingTimeInterval(interval)
                 platform.warningHUD.hide()
                 phase = .working

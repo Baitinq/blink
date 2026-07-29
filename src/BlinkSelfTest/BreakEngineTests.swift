@@ -129,7 +129,7 @@ final class BreakEngineTests {
     func testTimeAwayCountsAsABreak() {
         settings.idleResetEnabled = true
         platform.advance(19 * 60)
-        platform.fakeIdle.idle = Double(settings.breakDurationSeconds)
+        platform.fakeIdle.idle = Double(settings.idleRestSeconds)
 
         platform.advance(60)   // would have broken without idle credit
         expectEqual(engine.phase, .working)
@@ -146,9 +146,26 @@ final class BreakEngineTests {
 
     func testShortIdleDoesNotEarnCredit() {
         settings.idleResetEnabled = true
-        platform.fakeIdle.idle = Double(settings.breakDurationSeconds) - 1
+        platform.fakeIdle.idle = Double(settings.idleRestSeconds) - 1
         platform.advance(20 * 60)
         expectEqual(engine.phase, .resting)
+    }
+
+    /// The bug this threshold exists to prevent: reading a long document without
+    /// touching the keyboard is exactly when your eyes need a break, so a pause
+    /// of a break's length must not reset the clock.
+    func testPausingAtYourDeskCannotStarveBreaks() {
+        settings.idleResetEnabled = true
+        expectTrue(settings.idleRestSeconds >= 60, "the threshold must mean 'I left'")
+
+        // Pause for three break-lengths every couple of minutes, all afternoon.
+        for _ in 0..<10 {
+            platform.fakeIdle.idle = 0
+            platform.advance(110)
+            platform.fakeIdle.idle = Double(settings.breakDurationSeconds) * 3
+            platform.advance(10)
+        }
+        expectEqual(engine.phase, .resting, "the break still arrives")
     }
 
     func testIdleCreditHidesAWarningAlreadyOnScreen() {
@@ -156,7 +173,7 @@ final class BreakEngineTests {
         platform.advance(19 * 60 + 55)
         expectEqual(engine.phase, .warning)
 
-        platform.fakeIdle.idle = 30
+        platform.fakeIdle.idle = Double(settings.idleRestSeconds) + 10
         platform.advance(1)
         expectEqual(engine.phase, .working)
         expectFalse(platform.recordingHUD.isVisible)
@@ -458,6 +475,7 @@ final class BreakEngineTests {
         ("testTimeAwayCountsAsABreak", testTimeAwayCountsAsABreak),
         ("testIdleCreditIgnoredWhenDisabled", testIdleCreditIgnoredWhenDisabled),
         ("testShortIdleDoesNotEarnCredit", testShortIdleDoesNotEarnCredit),
+        ("testPausingAtYourDeskCannotStarveBreaks", testPausingAtYourDeskCannotStarveBreaks),
         ("testIdleCreditHidesAWarningAlreadyOnScreen", testIdleCreditHidesAWarningAlreadyOnScreen),
         ("testWakeReArmsAFullInterval", testWakeReArmsAFullInterval),
         ("testWakeDoesNotResumeAPausedEngine", testWakeDoesNotResumeAPausedEngine),

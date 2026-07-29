@@ -45,6 +45,15 @@ final class SettingsViewModel: ObservableObject {
     var fadeToBlack: Binding<Bool> { binding(\.fadeToBlack) }
     var idleResetEnabled: Binding<Bool> { binding(\.idleResetEnabled) }
     var showCountdown: Binding<Bool> { binding(\.showCountdownInStatusBar) }
+    var idleRestMinutes: Binding<Int> {
+        Binding(
+            get: { max(1, self.settings.idleRestSeconds / 60) },
+            set: { newValue in
+                self.objectWillChange.send()
+                self.settings.idleRestSeconds = newValue * 60
+            }
+        )
+    }
 
     var summary: String {
         "Every \(settings.workIntervalMinutes) minutes, look away for \(settings.breakDurationSeconds) seconds."
@@ -132,7 +141,12 @@ struct SettingsContent: View {
                 Divider().opacity(0.4)
                 toggleRow("Chime at start and end", "Lets you rest with your eyes shut and still know when it is over.", model.playSounds)
                 Divider().opacity(0.4)
-                toggleRow("Time away counts as a break", "If you leave the keyboard for a full break length, the timer resets.", model.idleResetEnabled)
+                toggleRow("Time away counts as a break",
+                          "Leaving the keyboard long enough rests your eyes on its own, so the timer starts over instead of interrupting you when you sit back down.",
+                          model.idleResetEnabled)
+                Divider().opacity(0.4)
+                stepperRow(title: "Away for at least", value: model.idleRestMinutes,
+                           range: 1...30, step: 1, format: { "\($0) min" })
                 Divider().opacity(0.4)
                 toggleRow("Show countdown in the menu bar", "Displays minutes until the next break next to the icon.", model.showCountdown)
                 Divider().opacity(0.4)

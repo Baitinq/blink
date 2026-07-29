@@ -22,8 +22,10 @@ input and notification plumbing.
   in progress and starts the moment you are free. It reads the calendars already
   in Calendar.app, so a Google account works over CalDAV with no OAuth, no
   credentials and nothing to configure.
-- **Away time counts.** Leave the keyboard for a full break length and the timer
-  resets — no pointless interruption when you get back from coffee.
+- **Away time counts.** Leave the keyboard for a couple of minutes and the timer
+  starts over — no pointless interruption when you sit back down. The threshold
+  is deliberately far longer than a break: pausing at your desk to read is when
+  your eyes need one most, so it must not reset the clock.
 - **Hard to cancel by accident.** The overlay lands under wherever your pointer
   already is, so for the first 1.5 s nothing is accepted at all; after that it
   takes two of anything — click Skip twice, or press Esc twice. *Strict mode*
@@ -104,6 +106,7 @@ Same keys on both platforms — `UserDefaults` on macOS,
 | `fadeToBlack` | true |
 | `playSounds` | true |
 | `idleResetEnabled` | true |
+| `idleRestSeconds` | 120 |
 | `skipDuringMeetings` (macOS) | true |
 | `meetingsNeedAttendees` (macOS) | true |
 | `showPreBreakWarning` | true |

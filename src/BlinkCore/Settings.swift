@@ -11,6 +11,7 @@ extension SettingKey {
     public static let showWarning = SettingKey("showPreBreakWarning")
     public static let fadeToBlack = SettingKey("fadeToBlack")
     public static let idleReset = SettingKey("idleResetEnabled")
+    public static let idleRestSeconds = SettingKey("idleRestSeconds")
     public static let skipDuringMeetings = SettingKey("skipDuringMeetings")
     public static let meetingsNeedAttendees = SettingKey("meetingsNeedAttendees")
     public static let breaksToday = SettingKey("breaksToday")
@@ -31,6 +32,7 @@ public final class BlinkSettings {
         .showWarning: true,
         .fadeToBlack: true,
         .idleReset: true,
+        .idleRestSeconds: 120,
         .skipDuringMeetings: true,
         .meetingsNeedAttendees: true,
     ]
@@ -97,6 +99,15 @@ public final class BlinkSettings {
     public var idleResetEnabled: Bool {
         get { store.bool(.idleReset) }
         set { write(newValue, .idleReset) }
+    }
+    /// How long away from the keyboard counts as having rested your eyes.
+    ///
+    /// Deliberately much longer than a break: a 20-second pause at your desk is
+    /// reading or thinking, not resting, and tying this to the break length let
+    /// frequent short pauses starve breaks entirely.
+    public var idleRestSeconds: Int {
+        get { store.int(.idleRestSeconds) }
+        set { write(newValue, .idleRestSeconds) }
     }
     /// Hold breaks back while a meeting is in progress.
     public var skipDuringMeetings: Bool {
