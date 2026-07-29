@@ -227,6 +227,8 @@ struct SettingsContent: View {
     }
 }
 
+/// Launch at login. `SMAppService` reports `notFound` until the app registers
+/// once, which is not an error — only a failed `register()` is.
 enum LoginItem {
     static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
 
@@ -240,7 +242,7 @@ enum LoginItem {
             }
             return nil
         } catch {
-            return "Could not update login item: \(error.localizedDescription)"
+            return "Could not update launch at login: \(error.localizedDescription)"
         }
     }
 }

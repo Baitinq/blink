@@ -65,5 +65,12 @@ pkill -x Blink || true
 sleep 0.5
 rm -rf "$DEST/Blink.app"
 cp -R "$APP" "$DEST/Blink.app"
+
+# An ad-hoc signature is a hash of the binary, so every build is a new identity
+# and the old Calendar approval no longer matches it. macOS then reports "not
+# determined" and never re-prompts, silently disabling meeting awareness — so
+# clear the stale record and let the fresh build ask again.
+tccutil reset Calendar "$BUNDLE_ID" >/dev/null 2>&1 || true
+
 open "$DEST/Blink.app"
 echo "▸ Blink is running — look for the eye in your menu bar"

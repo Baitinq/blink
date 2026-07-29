@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 enum BlinkApp {
     static func main() {
+        // Diagnostics run before anything else: no status item, no engine, and
+        // they bypass the single-instance guard so they work while Blink runs.
+        if let argument = CommandLine.arguments.dropFirst().first {
+            Diagnostics.run(argument)
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core-macos:
+    name: core + macOS app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Self-test
+        run: swift run blink-selftest
+      - name: Build the app bundle
+        run: packaging/macos/build.sh
+
+  linux:
+    name: Linux port + overlay smoke test
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install X11, cairo and test tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            pkg-config libx11-dev libxss-dev libxrandr-dev libcairo2-dev \
+            xvfb x11-utils imagemagick fonts-dejavu-core jq xdotool
+      - name: Self-test
+        run: swift run -c release blink-selftest
+      - name: Build
+        run: swift build -c release --product blink
+      # Drives the real overlay under Xvfb: break cycle, CLI, FIFO, input guards.
+      - name: Overlay smoke test
+        run: OUT=$PWD/out bash packaging/linux/smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: overlay-screenshots
+          path: out/*.png

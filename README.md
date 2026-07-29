@@ -190,6 +190,27 @@ it cannot rewrite your settings, single-instance assertion, an actual break time
 to the second, cleanup on exit — but it does put a full-screen overlay on your
 display, so run it when you are not mid-task.
 
+## Diagnostics
+
+macOS judges a permission request by the *responsible* process, so a binary
+started from a shell is judged as your terminal and always looks unauthorised.
+Launch these through `open` instead and read the transcript:
+
+```sh
+open -a Blink --args --calendar-check   # then: cat /tmp/blink-diagnostics.txt
+open -a Blink --args --login-item on
+```
+
+`--calendar-check` prints what Blink can see, whether it thinks you are in a
+meeting, and for every event overlapping now, why it does or does not hold a
+break — which is the quickest way to explain a surprise.
+
+Note that an ad-hoc signature is a hash of the binary, so **every rebuild is a
+new code identity** and the previous Calendar approval no longer matches it.
+macOS then reports "not determined" and never re-prompts, which would silently
+disable meeting awareness — so `build.sh --install` clears the stale record with
+`tccutil reset Calendar` and lets the fresh build ask again.
+
 ## Linux caveats
 
 The overlay is an override-redirect X11 window: under Xorg nothing can stack
