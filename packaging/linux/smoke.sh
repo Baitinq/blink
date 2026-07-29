@@ -3,14 +3,16 @@
 # display, drive it through the control FIFO, and screenshot the real overlay.
 set -euo pipefail
 
-BIN=/src/.build/release/blink
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+BIN="$ROOT/.build/release/blink"
+SELFTEST="$ROOT/.build/release/blink-selftest"
 OUT=${OUT:-/out}
 mkdir -p "$OUT"
 export XDG_RUNTIME_DIR=/tmp/run XDG_CONFIG_HOME=/tmp/config
 mkdir -p $XDG_RUNTIME_DIR $XDG_CONFIG_HOME
 
 echo "▸ core self-test"
-/src/.build/release/blink-selftest
+"$SELFTEST"
 
 echo "▸ starting Xvfb (two virtual monitors via one 2400x900 root)"
 Xvfb :99 -screen 0 2400x900x24 >/dev/null 2>&1 &
