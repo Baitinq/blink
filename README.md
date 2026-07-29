@@ -73,9 +73,17 @@ first launch). It then holds any due break while an event is in progress and
 starts it as soon as the meeting ends — the menu bar shows *Break held — in
 Weekly sync*, with **Break now anyway** if you want it regardless.
 
-All-day events, declined invitations and anything marked *free* are ignored, so
-"PTO" or a reminder will not suppress your breaks all day. By default only events
-with other attendees or a video link count, so focus blocks still get breaks.
+What counts as a meeting is deliberately narrow, because anything else quietly
+costs you breaks:
+
+- **Only meetings you accepted.** An invitation you never answered, marked
+  *maybe*, or declined does not hold anything.
+- **Only meetings with other people.** A block you schedule with yourself — a
+  "no interviews" hold, focus time — lists *you* as an attendee, so Blink asks
+  whether anyone *else* is involved, or whether there is a video link. Turn off
+  *Only events with other people* if you want solo blocks to hold breaks too.
+- **No all-day events**, so "PTO" or a conference does not suppress a whole day.
+- **Nothing marked *free*** in the calendar, so reminders are ignored.
 
 Linux has no calendar source: there is no equally credential-free equivalent of
 Calendar.app, and an iCal feed lags reality by too much to be trusted for "am I

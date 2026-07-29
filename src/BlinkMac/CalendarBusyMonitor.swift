@@ -100,24 +100,46 @@ final class CalendarBusyMonitor: BusyMonitor {
         events = store.events(matching: predicate).map(Self.busyEvent)
     }
 
-    private static func busyEvent(_ event: EKEvent) -> BusyEvent {
+    /// Internal so the headless test can check the mapping without calendar access.
+    static func busyEvent(_ event: EKEvent) -> BusyEvent {
         BusyEvent(
             title: event.title ?? "",
             start: event.startDate,
             end: event.endDate,
             isAllDay: event.isAllDay,
-            isDeclined: declined(event),
+            attendance: attendance(of: event),
             isTransparent: event.availability == .free,
-            involvesOthers: event.hasAttendees || hasConferenceLink(event)
+            involvesOthers: involvesOthers(
+                attendeeCount: event.attendees?.count ?? 0,
+                includesSelf: event.attendees?.contains { $0.isCurrentUser } ?? false,
+                hasConferenceLink: hasConferenceLink(event)
+            )
         )
     }
 
-    private static func declined(_ event: EKEvent) -> Bool {
-        if event.status == .canceled { return true }
-        // The organiser's copy of your own decline shows up as a participant status.
-        return event.attendees?.contains {
-            $0.isCurrentUser && $0.participantStatus == .declined
-        } ?? false
+    /// A block you schedule with yourself still lists you as an attendee, so
+    /// "has attendees" is not the question — "is anyone else involved" is.
+    /// Otherwise a personal "no interviews" hold would suppress every break.
+    static func involvesOthers(attendeeCount: Int, includesSelf: Bool,
+                               hasConferenceLink: Bool) -> Bool {
+        let others = includesSelf ? attendeeCount - 1 : attendeeCount
+        return others > 0 || hasConferenceLink
+    }
+
+    /// Your own events count as accepted; anything you have not actually accepted
+    /// does not, so an unanswered invitation never holds a break.
+    static func attendance(of event: EKEvent) -> Attendance {
+        if event.status == .canceled { return .declined }
+        if event.organizer?.isCurrentUser == true { return .accepted }
+        guard let me = event.attendees?.first(where: { $0.isCurrentUser }) else {
+            return .accepted   // no invitee list: an event you put on your own calendar
+        }
+        switch me.participantStatus {
+        case .accepted: return .accepted
+        case .tentative: return .tentative
+        case .declined, .delegated: return .declined
+        default: return .invited
+        }
     }
 
     /// A solo event with a Meet or Zoom link is still a call.

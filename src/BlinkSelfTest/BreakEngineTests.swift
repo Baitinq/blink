@@ -287,13 +287,30 @@ final class BreakEngineTests {
             BusyEvent(title: "PTO", start: now.addingTimeInterval(-600),
                       end: now.addingTimeInterval(86_400), isAllDay: true),
             BusyEvent(title: "Declined", start: now.addingTimeInterval(-60),
-                      end: now.addingTimeInterval(600), isDeclined: true),
+                      end: now.addingTimeInterval(600), attendance: .declined),
+            BusyEvent(title: "Never answered", start: now.addingTimeInterval(-60),
+                      end: now.addingTimeInterval(600), attendance: .invited),
+            BusyEvent(title: "Maybe", start: now.addingTimeInterval(-60),
+                      end: now.addingTimeInterval(600), attendance: .tentative),
             BusyEvent(title: "Marked free", start: now.addingTimeInterval(-60),
                       end: now.addingTimeInterval(600), isTransparent: true),
         ]
         let meeting = MeetingFilter.inProgress(events, at: now, needAttendees: true)
         expectEqual(meeting?.title, "All hands")
         expectEqual(MeetingFilter.reason(for: meeting!), "in All hands")
+    }
+
+    /// A meeting you were invited to but never answered is not a meeting you are in.
+    func testOnlyAcceptedMeetingsHoldBreaks() {
+        let now = Date()
+        func event(_ attendance: Attendance) -> [BusyEvent] {
+            [BusyEvent(title: "Sync", start: now.addingTimeInterval(-60),
+                       end: now.addingTimeInterval(600), attendance: attendance)]
+        }
+        expectNotNil(MeetingFilter.inProgress(event(.accepted), at: now, needAttendees: true))
+        expectTrue(MeetingFilter.inProgress(event(.invited), at: now, needAttendees: true) == nil)
+        expectTrue(MeetingFilter.inProgress(event(.tentative), at: now, needAttendees: true) == nil)
+        expectTrue(MeetingFilter.inProgress(event(.declined), at: now, needAttendees: true) == nil)
     }
 
     func testSoloFocusBlocksDoNotHoldBreaks() {
@@ -456,6 +473,7 @@ final class BreakEngineTests {
         ("testAMeetingStartingDuringTheWarningHidesIt", testAMeetingStartingDuringTheWarningHidesIt),
         ("testMeetingDoesNotInterruptABreakAlreadyRunning", testMeetingDoesNotInterruptABreakAlreadyRunning),
         ("testMeetingFilterPicksTheRightEvent", testMeetingFilterPicksTheRightEvent),
+        ("testOnlyAcceptedMeetingsHoldBreaks", testOnlyAcceptedMeetingsHoldBreaks),
         ("testSoloFocusBlocksDoNotHoldBreaks", testSoloFocusBlocksDoNotHoldBreaks),
         ("testOverlappingMeetingsPickTheLatestEnd", testOverlappingMeetingsPickTheLatestEnd),
         ("testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle", testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle),

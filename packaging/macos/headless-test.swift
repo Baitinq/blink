@@ -1,4 +1,5 @@
 import AppKit
+import EventKit
 import SwiftUI
 import BlinkCore
 
@@ -149,6 +150,85 @@ group("settings exposes the meeting toggles") {
     expect(model.meetingsNeedAttendees.wrappedValue, "attendees required by default")
     model.meetingsNeedAttendees.wrappedValue = false
     expect(!settings.meetingsNeedAttendees, "toggle writes through")
+}
+
+group("a block scheduled with yourself is not a meeting") {
+    // The case that matters: a personal "no interviews" hold lists you as an
+    // attendee, and must not suppress breaks for its whole duration.
+    expect(!CalendarBusyMonitor.involvesOthers(attendeeCount: 1, includesSelf: true,
+                                               hasConferenceLink: false),
+           "just me is not a meeting")
+    expect(!CalendarBusyMonitor.involvesOthers(attendeeCount: 0, includesSelf: false,
+                                               hasConferenceLink: false),
+           "no attendees at all is not a meeting")
+    expect(CalendarBusyMonitor.involvesOthers(attendeeCount: 2, includesSelf: true,
+                                              hasConferenceLink: false),
+           "me plus one other is a meeting")
+    expect(CalendarBusyMonitor.involvesOthers(attendeeCount: 1, includesSelf: true,
+                                              hasConferenceLink: true),
+           "a solo invite with a video link is still a call")
+}
+
+group("your own events count as accepted") {
+    let store = EKEventStore()
+    let mine = EKEvent(eventStore: store)
+    mine.title = "no interviews"
+    mine.startDate = Date()
+    mine.endDate = Date().addingTimeInterval(3600)
+    // No invitee list at all: an event you put on your own calendar.
+    expect(CalendarBusyMonitor.attendance(of: mine) == .accepted,
+           "an event with no invitees is yours, so accepted")
+
+    let cancelled = EKEvent(eventStore: store)
+    cancelled.title = "Cancelled sync"
+    cancelled.startDate = Date()
+    cancelled.endDate = Date().addingTimeInterval(1800)
+    // status is read-only for detached events, so this only checks the default path.
+    expect(CalendarBusyMonitor.attendance(of: cancelled) == .accepted, "default is accepted")
+}
+
+group("calendar events map onto the core's busy events") {
+    // EKEvents can be built in memory, so this checks the mapping — the one part
+    // of the calendar path that is macOS-specific — without touching a calendar.
+    let store = EKEventStore()
+
+    let solo = EKEvent(eventStore: store)
+    solo.title = "Focus time"
+    solo.startDate = Date()
+    solo.endDate = Date().addingTimeInterval(3600)
+    let mappedSolo = CalendarBusyMonitor.busyEvent(solo)
+    expect(mappedSolo.title == "Focus time", "title carried over")
+    expect(!mappedSolo.involvesOthers, "a solo block involves nobody else")
+    expect(!mappedSolo.isAllDay && !mappedSolo.isTransparent, "plain event")
+
+    let call = EKEvent(eventStore: store)
+    call.title = "1:1"
+    call.startDate = Date()
+    call.endDate = Date().addingTimeInterval(1800)
+    call.notes = "Join: https://meet.google.com/abc-defg-hij"
+    expect(CalendarBusyMonitor.busyEvent(call).involvesOthers,
+           "a video link counts as involving others even with no attendees")
+
+    let zoomInLocation = EKEvent(eventStore: store)
+    zoomInLocation.title = "Sync"
+    zoomInLocation.startDate = Date()
+    zoomInLocation.endDate = Date().addingTimeInterval(1800)
+    zoomInLocation.location = "https://datadoghq.zoom.us/j/123"
+    expect(CalendarBusyMonitor.busyEvent(zoomInLocation).involvesOthers, "zoom link in location")
+
+    let pto = EKEvent(eventStore: store)
+    pto.title = "PTO"
+    pto.startDate = Date()
+    pto.endDate = Date().addingTimeInterval(86_400)
+    pto.isAllDay = true
+    expect(CalendarBusyMonitor.busyEvent(pto).isAllDay, "all-day flag carried over")
+
+    // And the end-to-end decision: only the call should hold a break.
+    let mapped = [solo, call, pto].map(CalendarBusyMonitor.busyEvent)
+    expect(mapped.allSatisfy { $0.attendance == .accepted }, "own events map to accepted")
+    let meeting = MeetingFilter.inProgress(mapped, at: Date().addingTimeInterval(60),
+                                          needAttendees: true)
+    expect(meeting?.title == "1:1", "the call holds the break, nothing else does")
 }
 
 // MARK: - The settings window
