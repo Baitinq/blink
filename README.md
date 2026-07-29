@@ -18,8 +18,8 @@ input and notification plumbing.
   if there is nothing on screen, your eyes actually leave it.
 - **Chimes at both ends.** So you can shut your eyes or stare out the window and
   still know when it is over, without peeking.
-- **Never during a meeting.** A due break waits while a calendar event is in
-  progress and starts the moment you are free. macOS reads the calendars already
+- **Never during a meeting** (macOS). A due break waits while a calendar event is
+  in progress and starts the moment you are free. It reads the calendars already
   in Calendar.app, so a Google account works over CalDAV with no OAuth, no
   credentials and nothing to configure.
 - **Away time counts.** Leave the keyboard for a full break length and the timer
@@ -59,7 +59,6 @@ blink status             "next break in 12:04  ·  3 today"
 blink break | skip | postpone | resume
 blink pause 20m | 1h | inf
 blink set breakDurationSeconds 30
-blink calendar <ical-url> hold breaks during meetings (Google: "Secret address in iCal format")
 blink config             config path + contents
 ```
 
@@ -67,9 +66,9 @@ The daemon publishes `$XDG_RUNTIME_DIR/blink/status.json`, so a waybar/polybar
 module is a one-liner, and takes commands on a FIFO next to it. During a break,
 **esc esc** skips and **p p** postpones.
 
-## Meetings
+## Meetings (macOS)
 
-On macOS this needs one thing: allow Calendar access when Blink asks (once, at
+This needs one thing: allow Calendar access when Blink asks (once, at
 first launch). It then holds any due break while an event is in progress and
 starts it as soon as the meeting ends — the menu bar shows *Break held — in
 Weekly sync*, with **Break now anyway** if you want it regardless.
@@ -78,17 +77,9 @@ All-day events, declined invitations and anything marked *free* are ignored, so
 "PTO" or a reminder will not suppress your breaks all day. By default only events
 with other attendees or a video link count, so focus blocks still get breaks.
 
-Linux has no Calendar.app, so point it at a calendar's private iCal address:
-
-```sh
-blink calendar https://calendar.google.com/calendar/ical/.../basic.ics
-blink calendar off
-```
-
-Recurring meetings are expanded locally (daily and weekly rules, including
-`BYDAY`, `EXDATE`, `COUNT` and `UNTIL`). Note that Google's secret iCal feed can
-lag behind the live calendar, so a meeting created minutes ago may not hold a
-break yet.
+Linux has no calendar source: there is no equally credential-free equivalent of
+Calendar.app, and an iCal feed lags reality by too much to be trusted for "am I
+in a meeting right now". Breaks there are never held.
 
 ## Settings
 
@@ -105,9 +96,8 @@ Same keys on both platforms — `UserDefaults` on macOS,
 | `fadeToBlack` | true |
 | `playSounds` | true |
 | `idleResetEnabled` | true |
-| `skipDuringMeetings` | true |
-| `meetingsNeedAttendees` | true |
-| `calendarICSURL` (Linux) | — |
+| `skipDuringMeetings` (macOS) | true |
+| `meetingsNeedAttendees` (macOS) | true |
 | `showPreBreakWarning` | true |
 | `showCountdownInMenuBar` | false |
 

@@ -13,7 +13,6 @@ extension SettingKey {
     public static let idleReset = SettingKey("idleResetEnabled")
     public static let skipDuringMeetings = SettingKey("skipDuringMeetings")
     public static let meetingsNeedAttendees = SettingKey("meetingsNeedAttendees")
-    public static let calendarURL = SettingKey("calendarICSURL")
     public static let breaksToday = SettingKey("breaksToday")
     public static let breaksTodayDate = SettingKey("breaksTodayDate")
 }
@@ -109,11 +108,6 @@ public final class BlinkSettings {
     public var meetingsNeedAttendees: Bool {
         get { store.bool(.meetingsNeedAttendees) }
         set { write(newValue, .meetingsNeedAttendees) }
-    }
-    /// Linux only: the private iCal address of a calendar to poll.
-    public var calendarICSURL: String? {
-        get { store.string(.calendarURL).flatMap { $0.isEmpty ? nil : $0 } }
-        set { store.set(newValue ?? "", for: .calendarURL); notify() }
     }
 
     // MARK: Daily stats

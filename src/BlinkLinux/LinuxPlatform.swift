@@ -19,13 +19,15 @@ final class LinuxPlatform: Platform {
 
     /// Fails when there is no X display, which is the one thing this port cannot
     /// work around.
-    init?(verbose: Bool, store: SettingsStore, settings: BlinkSettings) {
+    init?(verbose: Bool, store: SettingsStore) {
         guard let x11 = X11Overlay() else { return nil }
         let display = XOpenDisplay(nil)   // separate connection for queries
         let idle = LinuxIdleMonitor(display: display)
 
         settingsStore = store
-        busy = ICSBusyMonitor(settings: settings)
+        // No calendar source on Linux: macOS gets meeting awareness from
+        // Calendar.app, and there is no equally credential-free equivalent here.
+        busy = NeverBusy()
         idleMonitor = idle
         describeIdleBackend = idle.backendDescription
         sound = LinuxSoundPlayer()

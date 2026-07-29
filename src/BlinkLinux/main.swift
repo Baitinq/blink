@@ -17,7 +17,6 @@ func usage() -> Never {
       blink pause <20m|1h|inf> pause reminders
       blink resume             resume reminders
       blink set <key> <value>  change a setting
-      blink calendar <url>     hold breaks during meetings from an iCal address
       blink config             print the config file path and contents
 
     config: $XDG_CONFIG_HOME/blink/config.json
@@ -49,15 +48,6 @@ case "break", "skip", "postpone", "resume":
 
 case "pause":
     runClient("pause " + (arguments.count > 1 ? arguments[1] : "inf"))
-
-case "calendar":
-    let store = JSONFileStore()
-    let settings = BlinkSettings(store: store)
-    if arguments.count > 1 {
-        settings.calendarICSURL = arguments[1] == "off" ? nil : arguments[1]
-    }
-    print(settings.calendarICSURL ?? "(no calendar configured)")
-    exit(0)
 
 case "config":
     let store = JSONFileStore()
@@ -102,7 +92,7 @@ let verbose = arguments.contains("--verbose")
 let store = JSONFileStore()
 let settings = BlinkSettings(store: store)
 
-guard let platform = LinuxPlatform(verbose: verbose, store: store, settings: settings) else {
+guard let platform = LinuxPlatform(verbose: verbose, store: store) else {
     FileHandle.standardError.write(Data("""
     blink: no X display found.
 

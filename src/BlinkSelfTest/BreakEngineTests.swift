@@ -313,108 +313,6 @@ final class BreakEngineTests {
         expectEqual(MeetingFilter.inProgress(events, at: now, needAttendees: true)?.title, "Long")
     }
 
-    // MARK: - iCal parsing (Linux calendar source)
-
-    func testICSParsesASingleMeeting() {
-        let text = """
-        BEGIN:VCALENDAR
-        BEGIN:VEVENT
-        SUMMARY:Design review
-        DTSTART:20260728T140000Z
-        DTEND:20260728T150000Z
-        ATTENDEE;CN=a:mailto:a@example.com
-        ATTENDEE;CN=b:mailto:b@example.com
-        END:VEVENT
-        END:VCALENDAR
-        """
-        let day = Self.utc("20260728T120000Z")
-        let events = ICS.events(from: text, window: DateInterval(start: day, duration: 86_400))
-        expectEqual(events.count, 1)
-        expectEqual(events.first?.title, "Design review")
-        expectTrue(events.first?.involvesOthers == true)
-        expectNotNil(MeetingFilter.inProgress(events, at: Self.utc("20260728T143000Z"),
-                                              needAttendees: true))
-        expectTrue(MeetingFilter.inProgress(events, at: Self.utc("20260728T153000Z"),
-                                            needAttendees: true) == nil)
-    }
-
-    /// Standups are recurring, so this is the case that actually matters.
-    func testICSExpandsAWeekdayStandup() {
-        let text = """
-        BEGIN:VEVENT
-        SUMMARY:Standup
-        DTSTART:20260727T090000Z
-        DTEND:20260727T091500Z
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
-        ATTENDEE:mailto:a@example.com
-        ATTENDEE:mailto:b@example.com
-        END:VEVENT
-        """
-        // Wednesday 29 July 2026, 09:07 UTC — mid-standup.
-        let wednesday = Self.utc("20260729T090700Z")
-        let events = ICS.events(from: text,
-                                window: DateInterval(start: wednesday.addingTimeInterval(-3600),
-                                                     duration: 7200))
-        expectNotNil(MeetingFilter.inProgress(events, at: wednesday, needAttendees: true),
-                     "a recurring standup must hold the break")
-    }
-
-    func testICSHonoursExdateAndAllDayEvents() {
-        let text = """
-        BEGIN:VEVENT
-        SUMMARY:Standup
-        DTSTART:20260727T090000Z
-        DTEND:20260727T091500Z
-        RRULE:FREQ=DAILY
-        EXDATE:20260729T090000Z
-        ATTENDEE:mailto:a@example.com
-        ATTENDEE:mailto:b@example.com
-        END:VEVENT
-        BEGIN:VEVENT
-        SUMMARY:Company holiday
-        DTSTART;VALUE=DATE:20260729
-        DTEND;VALUE=DATE:20260730
-        END:VEVENT
-        """
-        let wednesday = Self.utc("20260729T090700Z")
-        let events = ICS.events(from: text,
-                                window: DateInterval(start: wednesday.addingTimeInterval(-7200),
-                                                     duration: 14400))
-        expectTrue(MeetingFilter.inProgress(events, at: wednesday, needAttendees: true) == nil,
-                   "the cancelled occurrence must not hold a break")
-        expectTrue(events.contains { $0.isAllDay }, "all-day event parsed")
-    }
-
-    func testICSIgnoresDeclinedAndFreeEvents() {
-        let text = """
-        BEGIN:VEVENT
-        SUMMARY:Declined thing
-        DTSTART:20260728T140000Z
-        DTEND:20260728T150000Z
-        STATUS:CANCELLED
-        END:VEVENT
-        BEGIN:VEVENT
-        SUMMARY:Reminder
-        DTSTART:20260728T140000Z
-        DTEND:20260728T150000Z
-        TRANSP:TRANSPARENT
-        END:VEVENT
-        """
-        let events = ICS.events(from: text,
-                                window: DateInterval(start: Self.utc("20260728T120000Z"),
-                                                     duration: 86_400))
-        expectTrue(MeetingFilter.inProgress(events, at: Self.utc("20260728T143000Z"),
-                                            needAttendees: false) == nil)
-    }
-
-    private static func utc(_ stamp: String) -> Date {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
-        f.timeZone = TimeZone(identifier: "UTC")
-        return f.date(from: stamp)!
-    }
-
     // MARK: - Shared presentation rules
 
     /// Both renderers ask BreakVisuals for these, so the macOS and Linux overlays
@@ -560,10 +458,6 @@ final class BreakEngineTests {
         ("testMeetingFilterPicksTheRightEvent", testMeetingFilterPicksTheRightEvent),
         ("testSoloFocusBlocksDoNotHoldBreaks", testSoloFocusBlocksDoNotHoldBreaks),
         ("testOverlappingMeetingsPickTheLatestEnd", testOverlappingMeetingsPickTheLatestEnd),
-        ("testICSParsesASingleMeeting", testICSParsesASingleMeeting),
-        ("testICSExpandsAWeekdayStandup", testICSExpandsAWeekdayStandup),
-        ("testICSHonoursExdateAndAllDayEvents", testICSHonoursExdateAndAllDayEvents),
-        ("testICSIgnoresDeclinedAndFreeEvents", testICSIgnoresDeclinedAndFreeEvents),
         ("testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle", testFadeCurveIsVisibleAtBothEndsAndDarkInTheMiddle),
         ("testProgressIsClampedAndSafeAtZeroTotal", testProgressIsClampedAndSafeAtZeroTotal),
         ("testPauseDurationGrammar", testPauseDurationGrammar),
