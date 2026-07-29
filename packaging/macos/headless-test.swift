@@ -48,21 +48,25 @@ print("BlinkMac headless test")
 
 // MARK: - The overlay's escape hatches
 
-group("the grace period swallows presses") {
+group("the grace period swallows clicks and keys alike") {
     let state = BreakState()
     var skips = 0
-    state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
-    state.pressSkip()
-    state.pressSkip()
-    expect(skips == 0, "presses during the grace period must do nothing")
-    expect(!state.confirmingSkip, "and must not even prompt")
+    var postpones = 0
+    state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: { postpones += 1 }))
+    state.clickSkip()
+    state.clickPostpone()
+    state.escapePressed()
+    state.escapePressed()
+    expect(skips == 0 && postpones == 0,
+           "nothing lands during the grace period — this is what absorbs a click already in flight")
+    expect(!state.confirmingSkip, "and it must not even prompt")
     expect(!state.armed, "controls stay dimmed")
 }
 
 // The gate is time-based, so wait it out rather than adding a test hook to it.
 Thread.sleep(forTimeInterval: SkipGate.graceSeconds + 0.2)
 
-group("one click asks, two clicks skip") {
+group("one click skips, one click postpones") {
     let state = BreakState()
     var skips = 0
     state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
@@ -70,55 +74,46 @@ group("one click asks, two clicks skip") {
     state.refreshGate()
     expect(state.armed, "controls arm once the grace period has passed")
 
-    state.pressSkip()
-    expect(skips == 0, "one click must not skip — this is the bug that killed a real break")
-    expect(state.confirmingSkip, "one click should ask for confirmation")
+    state.clickSkip()
+    expect(skips == 1, "a click on a button aimed at Skip skips, no confirmation")
 
-    state.pressSkip()
-    expect(skips == 1, "two clicks skip")
-}
-
-group("escape and the Skip button share one gate") {
-    let state = BreakState()
-    var skips = 0
-    state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
-    Thread.sleep(forTimeInterval: SkipGate.graceSeconds + 0.1)
-    state.refreshGate()
-    state.pressSkip()          // as if from Esc
-    state.pressSkip()          // as if from the button
-    expect(skips == 1, "either input can ask, either can confirm")
-}
-
-group("postpone has its own gate") {
-    let state = BreakState()
-    var skips = 0
+    let other = BreakState()
     var postpones = 0
-    state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: { postpones += 1 }))
+    other.apply(makeContext(onSkip: {}, onPostpone: { postpones += 1 }))
     Thread.sleep(forTimeInterval: SkipGate.graceSeconds + 0.1)
-    state.refreshGate()
-
-    state.pressSkip()
-    state.pressPostpone()
-    expect(skips == 0 && postpones == 0, "arming one hatch must not arm the other")
-    expect(state.confirmingPostpone && !state.confirmingSkip, "only the last hatch prompts")
-
-    state.pressPostpone()
-    expect(postpones == 1 && skips == 0, "postpone confirmed, skip untouched")
+    other.refreshGate()
+    other.clickPostpone()
+    expect(postpones == 1, "same for postpone")
 }
 
-group("a fresh break re-locks the gate") {
+/// Esc stays gated: it is not aimed at anything, and a vim user presses it all day.
+group("escape still needs two presses") {
     let state = BreakState()
     var skips = 0
     state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
     Thread.sleep(forTimeInterval: SkipGate.graceSeconds + 0.1)
     state.refreshGate()
-    state.pressSkip()
+
+    state.escapePressed()
+    expect(skips == 0, "one escape must not end a break")
+    expect(state.confirmingSkip, "it asks instead")
+
+    state.escapePressed()
+    expect(skips == 1, "the second escape skips")
+}
+
+group("a fresh break re-locks everything") {
+    let state = BreakState()
+    var skips = 0
+    state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
+    Thread.sleep(forTimeInterval: SkipGate.graceSeconds + 0.1)
+    state.refreshGate()
 
     state.apply(makeContext(onSkip: { skips += 1 }, onPostpone: {}))
     expect(!state.armed && !state.confirmingSkip, "a new break starts locked")
-    state.pressSkip()
-    state.pressSkip()
-    expect(skips == 0, "presses inside the new grace period do nothing")
+    state.clickSkip()
+    state.escapePressed()
+    expect(skips == 0, "nothing lands inside the new grace period")
 }
 
 group("strict mode exposes no hatches") {

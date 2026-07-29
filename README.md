@@ -27,9 +27,10 @@ input and notification plumbing.
   is deliberately far longer than a break: pausing at your desk to read is when
   your eyes need one most, so it must not reset the clock.
 - **Hard to cancel by accident.** The overlay lands under wherever your pointer
-  already is, so for the first 1.5 s nothing is accepted at all; after that it
-  takes two of anything — click Skip twice, or press Esc twice. *Strict mode*
-  removes the hatches entirely.
+  already is, so for the first 1.5 s nothing is accepted at all — that absorbs a
+  click that was already on its way. After that, one click on Skip is enough,
+  while Esc asks twice, because a keystroke is aimed at nothing and Esc gets
+  pressed by reflex. *Strict mode* removes the hatches entirely.
 
 ## Install — macOS
 
@@ -41,8 +42,8 @@ packaging/macos/build.sh            # build only → .build/Blink.app
 Look for the eye in the menu bar. Turn on **Launch at login** in Settings.
 
 Menu: countdown and breaks-today · Break now · Skip · Pause (20 m / 1 h / 3 h /
-until resume) · Settings (⌘,) · Quit (⌘Q). During a break, click **Skip** twice
-or press **esc** twice. Only one copy of Blink runs at a time; a second launch
+until resume) · Settings (⌘,) · Quit (⌘Q). During a break, click **Skip** or
+press **esc** twice. Only one copy of Blink runs at a time; a second launch
 bows out rather than doubling your breaks.
 
 ## Install — Linux

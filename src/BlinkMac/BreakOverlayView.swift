@@ -69,19 +69,16 @@ struct BreakOverlayView: View {
         VStack(spacing: 14) {
             if state.allowsSkip {
                 HStack(spacing: 12) {
-                    GhostButton(title: state.confirmingPostpone
-                                    ? "Click again to postpone"
-                                    : "Postpone \(state.postponeMinutes) min",
+                    GhostButton(title: "Postpone \(state.postponeMinutes) min",
                                 symbol: "clock.arrow.circlepath",
                                 enabled: state.armed,
-                                highlighted: state.confirmingPostpone) {
-                        state.pressPostpone()
+                                highlighted: false) {
+                        state.clickPostpone()
                     }
-                    GhostButton(title: state.confirmingSkip ? "Click again to skip" : "Skip",
-                                symbol: "forward.end.fill",
+                    GhostButton(title: "Skip", symbol: "forward.end.fill",
                                 enabled: state.armed,
                                 highlighted: state.confirmingSkip) {
-                        state.pressSkip()
+                        state.clickSkip()
                     }
                 }
                 Text(hint)
@@ -94,13 +91,11 @@ struct BreakOverlayView: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: state.confirmingSkip)
-        .animation(.easeInOut(duration: 0.15), value: state.confirmingPostpone)
     }
 
-    /// A break should not end by accident, so the overlay says what a deliberate
-    /// exit looks like: anything twice.
     private var hint: String {
-        state.armed ? "click twice, or press esc twice" : ""
+        if state.confirmingSkip { return "press esc again to skip" }
+        return state.armed ? "or press esc twice" : ""
     }
 }
 
