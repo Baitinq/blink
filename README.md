@@ -136,6 +136,7 @@ the self-test, so the two renderers cannot drift apart.
 swift run blink-selftest                                  # 33 tests, both platforms, ~10 ms
 docker build -f packaging/linux/Dockerfile -t blink-linux . \
   && docker run --rm -v "$PWD/out":/out blink-linux       # Linux: overlay screenshots + input guards
+packaging/macos/headless-test.sh                          # macOS AppKit layer, nothing on screen
 packaging/macos/verify.sh                                 # live macOS app: takes over the screen
 ```
 
@@ -146,6 +147,11 @@ the accidental-skip guard are verified without waiting or opening a window.
 The container run is the one to prefer: inside Xvfb it drives the real overlay
 with `xdotool` and asserts the guards (two escapes during the grace period are
 ignored, one escape does not skip, two escapes do) without touching your session.
+
+`headless-test.sh` covers the AppKit pieces the other two cannot reach — the
+overlay's escape-hatch gates, the settings window building and writing through,
+the menu bar rendering every phase — with the activation policy set to
+`.prohibited`, so nothing is ever shown.
 
 `packaging/macos/verify.sh` checks the real bundle — scratch defaults domain so
 it cannot rewrite your settings, single-instance assertion, an actual break timed
