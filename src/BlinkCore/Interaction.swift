@@ -8,21 +8,21 @@ public enum SkipDecision: Equatable {
     case act
 }
 
-/// Guards the break's escape hatches against accidents.
+/// Guards one of the break's escape hatches against accidents.
 ///
 /// The overlay appears under wherever the pointer already is and swallows
 /// whatever you were typing, so a single click or keystroke must never end a
 /// break. Two rules, both learned from watching a real break die 2 seconds in:
 ///
 /// 1. A grace period at the start where nothing is accepted at all.
-/// 2. Deliberate intent afterwards — a held press, or a key pressed twice.
+/// 2. Afterwards, the same input twice — the first press asks, the second acts.
 ///
 /// Esc in particular cannot be a one-shot: for anyone who lives in vim it is the
-/// most reflexively pressed key on the board.
+/// most reflexively pressed key on the board. A click is no safer, since the
+/// pointer is already sitting somewhere when the overlay appears.
 public struct SkipGate {
     public static let graceSeconds: TimeInterval = 1.5
     public static let confirmWindow: TimeInterval = 1.5
-    public static let holdSeconds: TimeInterval = 0.6
 
     private let startedAt: Date
     private var confirmingSince: Date?
@@ -42,9 +42,8 @@ public struct SkipGate {
         return now.timeIntervalSince(confirmingSince) < Self.confirmWindow
     }
 
-    /// A tap of the escape hatch key: the first arms it, the second within the
-    /// window commits.
-    public mutating func keyPressed(at now: Date) -> SkipDecision {
+    /// A press — key or click. The first arms it, the second within the window commits.
+    public mutating func pressed(at now: Date) -> SkipDecision {
         guard isArmed(at: now) else { return .ignored }
         if isConfirming(at: now) {
             confirmingSince = nil
@@ -52,12 +51,5 @@ public struct SkipGate {
         }
         confirmingSince = now
         return .confirm
-    }
-
-    /// A press held for `holdSeconds` is deliberate on its own.
-    public mutating func holdCompleted(at now: Date) -> SkipDecision {
-        guard isArmed(at: now) else { return .ignored }
-        confirmingSince = nil
-        return .act
     }
 }

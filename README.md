@@ -21,8 +21,8 @@ input and notification plumbing.
 - **Away time counts.** Leave the keyboard for a full break length and the timer
   resets — no pointless interruption when you get back from coffee.
 - **Hard to cancel by accident.** The overlay lands under wherever your pointer
-  already is, so for the first 1.5 s nothing is accepted at all; after that Skip
-  and Postpone must be *held*, and Esc must be pressed twice. *Strict mode*
+  already is, so for the first 1.5 s nothing is accepted at all; after that it
+  takes two of anything — click Skip twice, or press Esc twice. *Strict mode*
   removes the hatches entirely.
 
 ## Install — macOS
@@ -35,9 +35,9 @@ packaging/macos/build.sh            # build only → .build/Blink.app
 Look for the eye in the menu bar. Turn on **Launch at login** in Settings.
 
 Menu: countdown and breaks-today · Break now · Skip · Pause (20 m / 1 h / 3 h /
-until resume) · Settings (⌘,) · Quit (⌘Q). During a break: hold a button, or
-press **esc** twice. Only one copy of Blink runs at a time; a second launch bows
-out rather than doubling your breaks.
+until resume) · Settings (⌘,) · Quit (⌘Q). During a break, click **Skip** twice
+or press **esc** twice. Only one copy of Blink runs at a time; a second launch
+bows out rather than doubling your breaks.
 
 ## Install — Linux
 
@@ -134,19 +134,23 @@ the self-test, so the two renderers cannot drift apart.
 
 ```sh
 swift run blink-selftest                                  # 33 tests, both platforms, ~10 ms
-packaging/macos/verify.sh                                 # live app: real overlay, timed break
 docker build -f packaging/linux/Dockerfile -t blink-linux . \
-  && docker run --rm -v "$PWD/out":/out blink-linux       # Linux build + live overlay screenshots
+  && docker run --rm -v "$PWD/out":/out blink-linux       # Linux: overlay screenshots + input guards
+packaging/macos/verify.sh                                 # live macOS app: takes over the screen
 ```
 
 The self-test drives the engine through a fake clock and fake platform, so a
 full 20-minute cycle, sleep/wake, idle credit, pause expiry, display hotplug and
 the accidental-skip guard are verified without waiting or opening a window.
 
-`verify.sh` is the belt-and-braces check on the real app: it runs against a
-**scratch defaults domain** so it can never rewrite your settings, asserts the
-single-instance guard, times an actual break to the second, and cleans up its
-process on exit.
+The container run is the one to prefer: inside Xvfb it drives the real overlay
+with `xdotool` and asserts the guards (two escapes during the grace period are
+ignored, one escape does not skip, two escapes do) without touching your session.
+
+`packaging/macos/verify.sh` checks the real bundle — scratch defaults domain so
+it cannot rewrite your settings, single-instance assertion, an actual break timed
+to the second, cleanup on exit — but it does put a full-screen overlay on your
+display, so run it when you are not mid-task.
 
 ## Linux caveats
 

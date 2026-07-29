@@ -307,35 +307,40 @@ final class BreakEngineTests {
         let start = Date()
         var gate = SkipGate(breakStartedAt: start)
         expectFalse(gate.isArmed(at: start))
-        expectEqual(gate.keyPressed(at: start), .ignored)
-        expectEqual(gate.holdCompleted(at: start.addingTimeInterval(1.4)), .ignored)
+        expectEqual(gate.pressed(at: start), .ignored)
+        expectEqual(gate.pressed(at: start.addingTimeInterval(1.4)), .ignored)
         expectTrue(gate.isArmed(at: start.addingTimeInterval(1.5)))
     }
 
-    func testEscapeNeedsTwoPressesToSkip() {
+    /// One click, or one reflexive Esc, must never end a break.
+    func testTwoPressesAreNeededToAct() {
         let start = Date()
         var gate = SkipGate(breakStartedAt: start)
         let armed = start.addingTimeInterval(2)
-        expectEqual(gate.keyPressed(at: armed), .confirm)
+        expectEqual(gate.pressed(at: armed), .confirm)
         expectTrue(gate.isConfirming(at: armed))
-        expectEqual(gate.keyPressed(at: armed.addingTimeInterval(0.4)), .act)
+        expectEqual(gate.pressed(at: armed.addingTimeInterval(0.4)), .act)
     }
 
-    /// A vim user hits Esc constantly; two presses a minute apart are not intent.
+    /// A vim user hits Esc constantly; two presses two seconds apart are not intent.
     func testStaleConfirmationExpires() {
         let start = Date()
         var gate = SkipGate(breakStartedAt: start)
         let armed = start.addingTimeInterval(2)
-        expectEqual(gate.keyPressed(at: armed), .confirm)
+        expectEqual(gate.pressed(at: armed), .confirm)
         expectFalse(gate.isConfirming(at: armed.addingTimeInterval(1.6)))
-        expectEqual(gate.keyPressed(at: armed.addingTimeInterval(1.6)), .confirm,
-                    "must arm again, not skip")
+        expectEqual(gate.pressed(at: armed.addingTimeInterval(1.6)), .confirm,
+                    "must arm again, not act")
     }
 
-    func testHoldingIsIntentEnoughOnItsOwn() {
+    func testActingResetsTheGateForTheNextPress() {
         let start = Date()
         var gate = SkipGate(breakStartedAt: start)
-        expectEqual(gate.holdCompleted(at: start.addingTimeInterval(2)), .act)
+        let armed = start.addingTimeInterval(2)
+        expectEqual(gate.pressed(at: armed), .confirm)
+        expectEqual(gate.pressed(at: armed.addingTimeInterval(0.2)), .act)
+        expectEqual(gate.pressed(at: armed.addingTimeInterval(0.4)), .confirm,
+                    "a fresh press must ask again")
     }
 
     // MARK: - Formatting
@@ -380,9 +385,9 @@ final class BreakEngineTests {
         ("testSettingsObserversAreAdditive", testSettingsObserversAreAdditive),
         ("testBreakOnDemandOverridesAPause", testBreakOnDemandOverridesAPause),
         ("testGateIgnoresEverythingDuringTheGracePeriod", testGateIgnoresEverythingDuringTheGracePeriod),
-        ("testEscapeNeedsTwoPressesToSkip", testEscapeNeedsTwoPressesToSkip),
+        ("testTwoPressesAreNeededToAct", testTwoPressesAreNeededToAct),
         ("testStaleConfirmationExpires", testStaleConfirmationExpires),
-        ("testHoldingIsIntentEnoughOnItsOwn", testHoldingIsIntentEnoughOnItsOwn),
+        ("testActingResetsTheGateForTheNextPress", testActingResetsTheGateForTheNextPress),
         ("testFormatting", testFormatting)
         ]
     }

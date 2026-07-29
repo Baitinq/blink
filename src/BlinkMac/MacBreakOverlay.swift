@@ -16,7 +16,9 @@ final class BreakState: ObservableObject {
     @Published var confirmingPostpone = false
     var onSkip: () -> Void = {}
     var onPostpone: () -> Void = {}
-    var gate = SkipGate(breakStartedAt: Date())
+    /// One gate per hatch, so arming Skip does not arm Postpone.
+    private var skipGate = SkipGate(breakStartedAt: Date())
+    private var postponeGate = SkipGate(breakStartedAt: Date())
 
     var progress: Double { BreakVisuals.progress(secondsLeft: secondsLeft, total: total) }
 
@@ -29,7 +31,8 @@ final class BreakState: ObservableObject {
         postponeMinutes = context.postponeMinutes
         onSkip = context.onSkip
         onPostpone = context.onPostpone
-        gate = SkipGate(breakStartedAt: Date())
+        skipGate = SkipGate(breakStartedAt: Date())
+        postponeGate = SkipGate(breakStartedAt: Date())
         armed = false
         confirmingSkip = false
         confirmingPostpone = false
@@ -38,26 +41,31 @@ final class BreakState: ObservableObject {
     /// Called from the overlay's tick so the controls light up when they arm and
     /// a stale "press esc again" prompt fades out on its own.
     func refreshGate(now: Date = Date()) {
-        let isArmed = gate.isArmed(at: now)
+        let isArmed = skipGate.isArmed(at: now)
         if armed != isArmed { armed = isArmed }
-        let stillConfirming = gate.isConfirming(at: now)
-        if !stillConfirming {
-            if confirmingSkip { confirmingSkip = false }
-            if confirmingPostpone { confirmingPostpone = false }
-        }
+        if confirmingSkip, !skipGate.isConfirming(at: now) { confirmingSkip = false }
+        if confirmingPostpone, !postponeGate.isConfirming(at: now) { confirmingPostpone = false }
     }
 
-    func escapePressed() {
-        switch gate.keyPressed(at: Date()) {
+    /// Esc and the Skip button share a gate: either one asks, either one confirms.
+    func pressSkip() {
+        switch skipGate.pressed(at: Date()) {
         case .ignored: break
-        case .confirm: confirmingSkip = true
+        case .confirm:
+            confirmingSkip = true
+            confirmingPostpone = false
         case .act: onSkip()
         }
     }
 
-    func holdCompleted(postpone: Bool) {
-        guard gate.holdCompleted(at: Date()) == .act else { return }
-        postpone ? onPostpone() : onSkip()
+    func pressPostpone() {
+        switch postponeGate.pressed(at: Date()) {
+        case .ignored: break
+        case .confirm:
+            confirmingPostpone = true
+            confirmingSkip = false
+        case .act: onPostpone()
+        }
     }
 }
 
@@ -84,7 +92,7 @@ final class MacBreakOverlay: BreakOverlay {
             // Esc asks to skip — twice, deliberately. Every other keystroke is
             // swallowed so it never leaks into the app behind the overlay.
             if event.keyCode == 53, !event.isARepeat, self?.state.allowsSkip == true {
-                self?.state.escapePressed()
+                self?.state.pressSkip()
             }
             return nil
         }

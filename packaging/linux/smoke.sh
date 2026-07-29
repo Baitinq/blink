@@ -70,3 +70,37 @@ kill -TERM $DAEMON_PID 2>/dev/null || true
 sleep 1
 kill $XVFB_PID 2>/dev/null || true
 echo "▸ done — screenshots in $OUT"
+
+# --- accidental-skip protection, exercised with real X input (isolated Xvfb) ---
+echo "▸ escape-hatch guard (esc during grace, single esc, esc twice)"
+Xvfb :98 -screen 0 1400x900x24 >/dev/null 2>&1 &
+XVFB2_PID=$!
+export DISPLAY=:98
+sleep 1
+$BIN set breakDurationSeconds 45 >/dev/null
+$BIN --verbose >/tmp/guard.log 2>&1 &
+GUARD_PID=$!
+sleep 2
+$BIN break
+sleep 0.5
+
+overlay_up() { xwininfo -root -children 2>/dev/null | grep -c "1400x900" || true; }
+
+xdotool key Escape; xdotool key Escape       # inside the 1.5s grace period
+sleep 0.5
+test "$(overlay_up)" != "0" && echo "  ✓ grace period ignored two escapes" \
+    || { echo "  ✗ break died during grace"; exit 1; }
+
+sleep 2                                       # now armed
+xdotool key Escape                            # one press only: must arm, not skip
+sleep 1.5
+test "$(overlay_up)" != "0" && echo "  ✓ a single escape did not skip" \
+    || { echo "  ✗ one escape skipped the break"; exit 1; }
+
+xdotool key Escape; sleep 0.3; xdotool key Escape
+sleep 1
+test "$(overlay_up)" = "0" && echo "  ✓ two escapes skipped" \
+    || { echo "  ✗ two escapes did not skip"; exit 1; }
+
+kill $GUARD_PID $XVFB2_PID 2>/dev/null || true
+echo "▸ all checks passed"

@@ -69,91 +69,38 @@ struct BreakOverlayView: View {
         VStack(spacing: 14) {
             if state.allowsSkip {
                 HStack(spacing: 12) {
-                    HoldButton(title: "Postpone \(state.postponeMinutes) min",
-                               symbol: "clock.arrow.circlepath",
-                               enabled: state.armed) {
-                        state.holdCompleted(postpone: true)
+                    GhostButton(title: state.confirmingPostpone
+                                    ? "Click again to postpone"
+                                    : "Postpone \(state.postponeMinutes) min",
+                                symbol: "clock.arrow.circlepath",
+                                enabled: state.armed,
+                                highlighted: state.confirmingPostpone) {
+                        state.pressPostpone()
                     }
-                    HoldButton(title: "Skip", symbol: "forward.end.fill", enabled: state.armed) {
-                        state.holdCompleted(postpone: false)
+                    GhostButton(title: state.confirmingSkip ? "Click again to skip" : "Skip",
+                                symbol: "forward.end.fill",
+                                enabled: state.armed,
+                                highlighted: state.confirmingSkip) {
+                        state.pressSkip()
                     }
                 }
                 Text(hint)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(state.confirmingSkip ? 0.6 : 0.22))
-                    .animation(.easeInOut(duration: 0.2), value: state.confirmingSkip)
+                    .foregroundStyle(.white.opacity(0.22))
             } else {
                 Label("Strict mode — this one is not skippable", systemImage: "lock.fill")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.3))
             }
         }
+        .animation(.easeInOut(duration: 0.15), value: state.confirmingSkip)
+        .animation(.easeInOut(duration: 0.15), value: state.confirmingPostpone)
     }
 
-    /// Deliberately wordy: a break should not end by accident, so the overlay
-    /// says exactly what a deliberate exit looks like.
+    /// A break should not end by accident, so the overlay says what a deliberate
+    /// exit looks like: anything twice.
     private var hint: String {
-        if state.confirmingSkip { return "press esc again to skip" }
-        return state.armed ? "hold a button, or press esc twice" : ""
-    }
-}
-
-/// A button that only fires after being held, so a stray click during a break
-/// does nothing. Fills up while held to show what is happening.
-private struct HoldButton: View {
-    let title: String
-    let symbol: String
-    let enabled: Bool
-    let action: () -> Void
-
-    @State private var hovering = false
-    @State private var holdProgress: Double = 0
-    @State private var timer: Timer?
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
-            Text(title).font(.system(size: 13, weight: .medium, design: .rounded))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 9)
-        .background(
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(hovering && enabled ? 0.16 : 0.08))
-                GeometryReader { geometry in
-                    Capsule()
-                        .fill(Color(red: 0.35, green: 0.85, blue: 0.78).opacity(0.35))
-                        .frame(width: geometry.size.width * holdProgress)
-                }
-            }
-        )
-        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
-        .foregroundStyle(.white.opacity(enabled ? (hovering ? 0.95 : 0.7) : 0.3))
-        .contentShape(Capsule())
-        .onHover { hovering = $0 }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in beginHold() }
-                .onEnded { _ in cancelHold() }
-        )
-        .animation(.linear(duration: 0.05), value: holdProgress)
-    }
-
-    private func beginHold() {
-        guard enabled, timer == nil else { return }
-        let step = 0.05
-        timer = Timer.scheduledTimer(withTimeInterval: step, repeats: true) { _ in
-            holdProgress += step / SkipGate.holdSeconds
-            guard holdProgress >= 1 else { return }
-            cancelHold()
-            action()
-        }
-    }
-
-    private func cancelHold() {
-        timer?.invalidate()
-        timer = nil
-        holdProgress = 0
+        state.armed ? "click twice, or press esc twice" : ""
     }
 }
 
@@ -184,8 +131,12 @@ private struct CountdownRing: View {
 struct GhostButton: View {
     let title: String
     let symbol: String
+    let enabled: Bool
+    let highlighted: Bool
     let action: () -> Void
     @State private var hovering = false
+
+    private var accent: Color { Color(red: 0.35, green: 0.85, blue: 0.78) }
 
     var body: some View {
         Button(action: action) {
@@ -195,11 +146,16 @@ struct GhostButton: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
-            .background(Capsule().fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
-            .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
-            .foregroundStyle(.white.opacity(hovering ? 0.95 : 0.7))
+            .background(
+                Capsule().fill(highlighted ? accent.opacity(0.22)
+                                           : Color.white.opacity(hovering && enabled ? 0.16 : 0.08))
+            )
+            .overlay(Capsule().stroke(highlighted ? accent.opacity(0.5)
+                                                  : Color.white.opacity(0.12), lineWidth: 1))
+            .foregroundStyle(.white.opacity(enabled ? (hovering || highlighted ? 0.95 : 0.7) : 0.3))
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
         .onHover { hovering = $0 }
     }
 }

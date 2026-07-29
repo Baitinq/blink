@@ -153,13 +153,13 @@ final class X11Overlay: BreakOverlay {
         let now = Date()
         switch keysym {
         case UInt(blink_XK_Escape):
-            switch skipGate.keyPressed(at: now) {
+            switch skipGate.pressed(at: now) {
             case .ignored: break
             case .confirm: confirming = "press esc again to skip"
             case .act: context.onSkip()
             }
         case UInt(blink_XK_p), UInt(blink_XK_P):
-            switch postponeGate.keyPressed(at: now) {
+            switch postponeGate.pressed(at: now) {
             case .ignored: break
             case .confirm: confirming = "press p again to postpone"
             case .act: context.onPostpone()
